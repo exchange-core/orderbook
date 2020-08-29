@@ -220,8 +220,11 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             return filled;
         }
 
-        for (final OrdersBucketNaive bucket : matchingBuckets.values()) {
+        final Iterator<OrdersBucketNaive> iterator = matchingBuckets.values().iterator();
 
+        while (iterator.hasNext()) {
+
+            final OrdersBucketNaive bucket = iterator.next();
             final long sizeLeft = takerSize - filled;
 
             filled += bucket.match(
@@ -229,9 +232,9 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                     reserveBidPriceTaker,
                     idMap::remove);
 
-            // remove empty buckets
+            // remove empty bucket
             if (bucket.getTotalVolume() == 0) {
-                matchingBuckets.remove(bucket.getPrice());
+                iterator.remove();
             }
 
             if (filled == takerSize) {
@@ -286,11 +289,6 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long requestedReduceSize = buffer.getLong(offset + REDUCE_OFFSET_SIZE);
         final long cmdUid = buffer.getLong(offset + REDUCE_OFFSET_UID);
 
-        if (requestedReduceSize <= 0) {
-            initResponse(MATCHING_REDUCE_FAILED_WRONG_SIZE);
-            return;
-        }
-
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // already matched, moved or cancelled
@@ -299,7 +297,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         }
 
         final long remainingSize = order.size - order.filled;
-        final long reduceBy = Math.min(remainingSize, requestedReduceSize);
+        final long reduceBy = Math.min(remainingSize, Math.max(requestedReduceSize, 0));
 
         final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.action);
         final OrdersBucketNaive ordersBucket = buckets.get(order.price);

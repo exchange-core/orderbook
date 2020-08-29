@@ -122,7 +122,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
                 getSymbolSpec().stateHash());
     }
 
-     static int stateHashStream(final Stream<? extends StateHash> stream) {
+    static int stateHashStream(final Stream<? extends StateHash> stream) {
         int h = 0;
         final Iterator<? extends StateHash> iterator = stream.iterator();
         while (iterator.hasNext()) {
@@ -180,7 +180,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     short MATCHING_UNSUPPORTED_COMMAND = -3004;
     short MATCHING_INVALID_ORDER_BOOK_ID = -3005;
     short MATCHING_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = -3041;
-    short MATCHING_REDUCE_FAILED_WRONG_SIZE = -3051;
 
     /*
      * Incoming message offsets
@@ -200,7 +199,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     int CANCEL_OFFSET_END = CANCEL_OFFSET_ORDER_ID + BitUtil.SIZE_OF_LONG;
 
     int REDUCE_OFFSET_UID = 0;
-    int REDUCE_OFFSET_ORDER_ID  = REDUCE_OFFSET_UID + BitUtil.SIZE_OF_LONG;
+    int REDUCE_OFFSET_ORDER_ID = REDUCE_OFFSET_UID + BitUtil.SIZE_OF_LONG;
     int REDUCE_OFFSET_SIZE = REDUCE_OFFSET_ORDER_ID + BitUtil.SIZE_OF_LONG;
     int REDUCE_OFFSET_END = REDUCE_OFFSET_SIZE + BitUtil.SIZE_OF_LONG;
 
@@ -215,6 +214,30 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     int RESPONSE_CODE_SIZE = BitUtil.SIZE_OF_SHORT;
     int RESPONSE_FIRST_MSG_OFFSET = RESPONSE_CODE_SIZE + BitUtil.SIZE_OF_INT;
 
+
+    // trade block header
+    int RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID = 0;
+    int RESPONSE_OFFSET_TBLK_TAKER_UID = RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED = RESPONSE_OFFSET_TBLK_TAKER_UID + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_TBLK_TAKER_ACTION = RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED + BitUtil.SIZE_OF_BYTE;
+    int RESPONSE_OFFSET_TBLK_TRADES_EVT_NUM = RESPONSE_OFFSET_TBLK_TAKER_ACTION + BitUtil.SIZE_OF_BYTE;
+    int RESPONSE_OFFSET_TBLK_REDUCE_EVT = RESPONSE_OFFSET_TBLK_TRADES_EVT_NUM + BitUtil.SIZE_OF_INT;
+    int RESPONSE_OFFSET_TBLK_END = RESPONSE_OFFSET_TBLK_REDUCE_EVT + BitUtil.SIZE_OF_BYTE;
+
+    // trade event
+    int RESPONSE_OFFSET_TEVT_MAKER_ORDER_ID = 0;
+    int RESPONSE_OFFSET_TEVT_MAKER_UID = RESPONSE_OFFSET_TEVT_MAKER_ORDER_ID + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_TEVT_PRICE = RESPONSE_OFFSET_TEVT_MAKER_UID + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_TEVT_RESERV_BID_PRICE = RESPONSE_OFFSET_TEVT_PRICE + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_TEVT_TRADE_VOL = RESPONSE_OFFSET_TEVT_RESERV_BID_PRICE + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_TEVT_MAKER_ORDER_COMPLETED = RESPONSE_OFFSET_TEVT_TRADE_VOL + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_TEVT_END = RESPONSE_OFFSET_TEVT_MAKER_ORDER_COMPLETED + BitUtil.SIZE_OF_BYTE;
+
+    // reduce event
+    int RESPONSE_OFFSET_REVT_PRICE = 0;
+    int RESPONSE_OFFSET_REVT_RESERV_BID_PRICE = RESPONSE_OFFSET_REVT_PRICE + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_REVT_REDUCED_VOL = RESPONSE_OFFSET_REVT_RESERV_BID_PRICE + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_REVT_END = RESPONSE_OFFSET_REVT_REDUCED_VOL + BitUtil.SIZE_OF_BYTE;
 
     /*
      * Order types

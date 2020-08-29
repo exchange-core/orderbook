@@ -21,6 +21,10 @@ public enum OrderAction {
 
     private byte code;
 
+    public byte getCode() {
+        return code;
+    }
+
     OrderAction(int code) {
         this.code = (byte) code;
     }

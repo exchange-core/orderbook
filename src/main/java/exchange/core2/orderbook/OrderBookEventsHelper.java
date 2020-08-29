@@ -41,15 +41,20 @@ public final class OrderBookEventsHelper {
         resultsBuffer.putByte(offset, takerCompleted ? (byte) 1 : 0);
         offset += BitUtil.SIZE_OF_BYTE;
 
+        // TODO single write in the end of block
+        // taker action fields (for events handling) - maker action is reversed
+        resultsBuffer.putByte(offset, matchingOrder.getAction() == OrderAction.ASK ? (byte) 1 : 0);
+        offset += BitUtil.SIZE_OF_BYTE;
+
         // maker completed
         resultsBuffer.putByte(offset, makerCompleted ? (byte) 1 : 0);
         offset += BitUtil.SIZE_OF_BYTE;
 
-        // matched order Id
+        // maker order Id
         resultsBuffer.putLong(offset, matchingOrder.getOrderId());
         offset += BitUtil.SIZE_OF_LONG;
 
-        // matched order UID
+        // maker order UID
         resultsBuffer.putLong(offset, matchingOrder.getUid());
         offset += BitUtil.SIZE_OF_LONG;
 

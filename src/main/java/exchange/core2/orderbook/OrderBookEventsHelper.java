@@ -15,8 +15,9 @@
  */
 package exchange.core2.orderbook;
 
-import org.agrona.BitUtil;
 import org.agrona.MutableDirectBuffer;
+
+import static exchange.core2.orderbook.IOrderBook.*;
 
 public final class OrderBookEventsHelper {
 
@@ -28,110 +29,54 @@ public final class OrderBookEventsHelper {
 
     public void sendTradeEvent(final IOrder matchingOrder,
                                final boolean makerCompleted,
-                               final boolean takerCompleted,
-                               final long size,
+                               final long tradeVolume,
                                final long bidderHoldPrice) {
 
-        int offset = resultsBuffer.getInt(IOrderBook.RESPONSE_CODE_SIZE);
+        final int tradeEventsNum = resultsBuffer.getInt(RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM);
+        resultsBuffer.putInt(RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM, tradeEventsNum + 1);
 
-        resultsBuffer.putByte(offset, IOrderBook.MATCHER_EVENT_TRADE);
-        offset += BitUtil.SIZE_OF_BYTE;
+        final int offset = IOrderBook.getTradeEventOffset(tradeEventsNum);
 
-        // TODO single write in the end of block
-        resultsBuffer.putByte(offset, takerCompleted ? (byte) 1 : 0);
-        offset += BitUtil.SIZE_OF_BYTE;
-
-        // TODO single write in the end of block
-        // taker action fields (for events handling) - maker action is reversed
-        resultsBuffer.putByte(offset, matchingOrder.getAction() == OrderAction.ASK ? (byte) 1 : 0);
-        offset += BitUtil.SIZE_OF_BYTE;
-
-        // maker completed
-        resultsBuffer.putByte(offset, makerCompleted ? (byte) 1 : 0);
-        offset += BitUtil.SIZE_OF_BYTE;
-
-        // maker order Id
-        resultsBuffer.putLong(offset, matchingOrder.getOrderId());
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // maker order UID
-        resultsBuffer.putLong(offset, matchingOrder.getUid());
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // matching size
-        resultsBuffer.putLong(offset, size);
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // matching price
-        resultsBuffer.putLong(offset, matchingOrder.getPrice());
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // matching order reserved price for released Exchange Bids funds
-        resultsBuffer.putLong(offset, bidderHoldPrice);
-        offset += BitUtil.SIZE_OF_LONG;
-
-        resultsBuffer.putInt(IOrderBook.RESPONSE_CODE_SIZE, offset);
+        resultsBuffer.putByte(offset + RESPONSE_OFFSET_TEVT_MAKER_ORDER_COMPLETED, makerCompleted ? (byte) 1 : 0);
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_MAKER_ORDER_ID, matchingOrder.getOrderId());
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_MAKER_UID, matchingOrder.getUid());
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_TRADE_VOL, tradeVolume);
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_PRICE, matchingOrder.getPrice());
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_RESERV_BID_PRICE, bidderHoldPrice); // matching order reserved price for released Exchange Bids funds
     }
 
-    public void sendReduceEvent(final IOrder order,
-                                final long reduceSize,
-                                final boolean completed) {
+    public void sendReduceEvent(final long price,
+                                final long bidderHoldPrice,
+                                final long reduceSize) {
 
-        int offset = resultsBuffer.getInt(IOrderBook.RESPONSE_CODE_SIZE);
+        resultsBuffer.putInt(RESPONSE_OFFSET_HEADER_REDUCE_EVT, 1);
 
-        resultsBuffer.putByte(offset, IOrderBook.MATCHER_EVENT_REDUCE);
-        offset += BitUtil.SIZE_OF_BYTE;
-
-        resultsBuffer.putByte(offset, completed ? (byte) 1 : 0);
-        offset += BitUtil.SIZE_OF_BYTE;
-
-        // fill action fields (for events handling)
-        resultsBuffer.putByte(offset, order.getAction() == OrderAction.BID ? (byte) 1 : 0);
-        offset += BitUtil.SIZE_OF_BYTE;
-
-        // reduced/cancelled size
-        resultsBuffer.putLong(offset, reduceSize);
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // order price
-        resultsBuffer.putLong(offset, order.getPrice());
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // TODO can we use single price field ?
-        // reserve price
-        resultsBuffer.putLong(offset, order.getReserveBidPrice());
-        offset += BitUtil.SIZE_OF_LONG;
-
-        resultsBuffer.putInt(IOrderBook.RESPONSE_CODE_SIZE, offset);
+        resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_REVT_PRICE, price);
+        resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_REVT_RESERV_BID_PRICE, bidderHoldPrice); // matching order reserved price for released Exchange Bids funds
+        resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_REVT_REDUCED_VOL, reduceSize);
     }
-
-    // TODO can use common method REJECT/REDUCE_ASK/REDUCE_BID/REDUCE_ASK_COMPLETE/REDUCE_BID_COMPLETE ?
 
     public void attachRejectEvent(final long price,
                                   final long bidderHoldPrice,
-                                  final long rejectedSize) {
+                                  final long reduceSize) {
 
+        final int tradeEventsNum = resultsBuffer.getInt(IOrderBook.RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM);
+        final int offset = IOrderBook.getTradeEventOffset(tradeEventsNum);
+        resultsBuffer.putInt(IOrderBook.RESPONSE_OFFSET_HEADER_REDUCE_EVT, 1);
 
-        int offset = resultsBuffer.getInt(IOrderBook.RESPONSE_CODE_SIZE);
-
-        resultsBuffer.putByte(offset, IOrderBook.MATCHER_EVENT_REJECT);
-        offset += BitUtil.SIZE_OF_BYTE;
-
-        // rejected size
-        resultsBuffer.putLong(offset, rejectedSize);
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // order price
-        resultsBuffer.putLong(offset, price);
-        offset += BitUtil.SIZE_OF_LONG;
-
-        // TODO can we use single price field ?
-        // reserve price
-        // set command reserved price for correct released EBids
-        resultsBuffer.putLong(offset, bidderHoldPrice);
-        offset += BitUtil.SIZE_OF_LONG;
-
-        resultsBuffer.putInt(IOrderBook.RESPONSE_CODE_SIZE, offset);
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_REVT_PRICE, price);
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_REVT_RESERV_BID_PRICE, bidderHoldPrice); // matching order reserved price for released Exchange Bids funds
+        resultsBuffer.putLong(offset + IOrderBook.RESPONSE_OFFSET_REVT_REDUCED_VOL, reduceSize);
     }
 
+    public void fillEventsHeader(final long takerOrderId,
+                                 final long takerUid,
+                                 final boolean takerOrderCompleted,
+                                 final OrderAction takerAction) {
+
+        resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID, takerOrderId);
+        resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_TAKER_UID, takerUid);
+        resultsBuffer.putByte(RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED, takerOrderCompleted ? (byte) 1 : 0);
+        resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_TAKER_ACTION, takerAction.getCode());
+    }
 }

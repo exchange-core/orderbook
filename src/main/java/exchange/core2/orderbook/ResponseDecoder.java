@@ -1,5 +1,6 @@
 package exchange.core2.orderbook;
 
+import exchange.core2.orderbook.events.CommandProcessingResponse;
 import exchange.core2.orderbook.events.ReduceEvent;
 import exchange.core2.orderbook.events.TradeEvent;
 import exchange.core2.orderbook.events.TradeEventsBlock;
@@ -9,6 +10,13 @@ import static exchange.core2.orderbook.IOrderBook.*;
 
 public final class ResponseDecoder {
 
+    public static CommandProcessingResponse readResult(final MutableDirectBuffer buf,
+                                                       final int offset) {
+        // TODO CommandProcessingResponse
+        return null;
+    }
+
+
     public static TradeEventsBlock readEventsBlock(final MutableDirectBuffer buf,
                                                    final int offset) {
 
@@ -16,8 +24,8 @@ public final class ResponseDecoder {
         final long takerUid = buf.getLong(offset + RESPONSE_OFFSET_TBLK_TAKER_UID);
         final boolean takerOrderCompleted = buf.getByte(offset + RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED) != 0;
         final OrderAction takerAction = OrderAction.of(buf.getByte(offset + RESPONSE_OFFSET_TBLK_TAKER_ACTION));
-        final int tradeEventsNum = buf.getInt(offset + RESPONSE_OFFSET_TBLK_TRADES_EVT_NUM);
-        final boolean hasReduceEvent = buf.getByte(offset + RESPONSE_OFFSET_TBLK_REDUCE_EVT) != 0;
+        final int tradeEventsNum = buf.getInt(offset + RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM);
+        final boolean hasReduceEvent = buf.getByte(offset + RESPONSE_OFFSET_HEADER_REDUCE_EVT) != 0;
 
         // build trade events
         final TradeEvent[] tradeEvents = new TradeEvent[tradeEventsNum];

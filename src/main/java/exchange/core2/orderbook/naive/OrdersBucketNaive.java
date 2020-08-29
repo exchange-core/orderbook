@@ -114,7 +114,6 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
             eventsHelper.sendTradeEvent(
                     order,
                     fullMatch,
-                    volumeToCollect == 0,
                     v,
                     order.action == OrderAction.ASK ? activeReservedBidPrice : order.reserveBidPrice);
 

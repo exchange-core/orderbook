@@ -2,6 +2,7 @@ package exchange.core2.orderbook.events;
 
 import exchange.core2.orderbook.OrderAction;
 
+import java.util.Arrays;
 import java.util.Optional;
 
 public class TradeEventsBlock {
@@ -50,5 +51,17 @@ public class TradeEventsBlock {
 
     public Optional<ReduceEvent> getReduceEvent() {
         return Optional.ofNullable(reduceEvent);
+    }
+
+    @Override
+    public String toString() {
+        return "TradeEventsBlock{" +
+                "takerOrderId=" + takerOrderId +
+                ", takerUid=" + takerUid +
+                ", takerOrderCompleted=" + takerOrderCompleted +
+                ", takerAction=" + takerAction +
+                ", trades=" + Arrays.toString(trades) +
+                ", reduceEvent=" + reduceEvent +
+                '}';
     }
 }

@@ -16,10 +16,14 @@
 package exchange.core2.orderbook;
 
 import org.agrona.MutableDirectBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static exchange.core2.orderbook.IOrderBook.*;
 
 public final class OrderBookEventsHelper {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderBookEventsHelper.class);
 
     private final MutableDirectBuffer resultsBuffer;
 
@@ -37,26 +41,32 @@ public final class OrderBookEventsHelper {
 
         final int offset = IOrderBook.getTradeEventOffset(tradeEventsNum);
 
-        resultsBuffer.putByte(offset + RESPONSE_OFFSET_TEVT_MAKER_ORDER_COMPLETED, makerCompleted ? (byte) 1 : 0);
+//        log.debug("MATCH: tradeEventsNum={} offset={} orderId={} matchingOrder={}", tradeEventsNum, offset, matchingOrder.getOrderId(), matchingOrder);
+
         resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_MAKER_ORDER_ID, matchingOrder.getOrderId());
         resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_MAKER_UID, matchingOrder.getUid());
-        resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_TRADE_VOL, tradeVolume);
         resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_PRICE, matchingOrder.getPrice());
         resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_RESERV_BID_PRICE, bidderHoldPrice); // matching order reserved price for released Exchange Bids funds
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_TEVT_TRADE_VOL, tradeVolume);
+        resultsBuffer.putByte(offset + RESPONSE_OFFSET_TEVT_MAKER_ORDER_COMPLETED, makerCompleted ? (byte) 1 : 0);
+
+//        log.debug("BUF after trade event: \n{}", PrintBufferUtil.hexDump(resultsBuffer, 0, 128));
+
     }
 
-    public void sendReduceEvent(final long price,
-                                final long bidderHoldPrice,
-                                final long reduceSize) {
+    public void writeSingleReduceEvent(final long price,
+                                       final long bidderHoldPrice,
+                                       final long reduceSize) {
 
         resultsBuffer.putInt(RESPONSE_OFFSET_HEADER_REDUCE_EVT, 1);
 
+        // fixed offset beacuse reduce is always a single event
         resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_REVT_PRICE, price);
         resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_REVT_RESERV_BID_PRICE, bidderHoldPrice); // matching order reserved price for released Exchange Bids funds
         resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_REVT_REDUCED_VOL, reduceSize);
     }
 
-    public void attachRejectEvent(final long price,
+    public void appendRejectEvent(final long price,
                                   final long bidderHoldPrice,
                                   final long reduceSize) {
 
@@ -77,6 +87,8 @@ public final class OrderBookEventsHelper {
         resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID, takerOrderId);
         resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_TAKER_UID, takerUid);
         resultsBuffer.putByte(RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED, takerOrderCompleted ? (byte) 1 : 0);
-        resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_TAKER_ACTION, takerAction.getCode());
+        resultsBuffer.putByte(RESPONSE_OFFSET_TBLK_TAKER_ACTION, takerAction.getCode());
+
+//        log.debug("BUF after fillEventsHeader: \n{}", PrintBufferUtil.hexDump(resultsBuffer, 0, 128));
     }
 }

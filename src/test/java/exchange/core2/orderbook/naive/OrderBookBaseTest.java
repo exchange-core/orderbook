@@ -16,22 +16,32 @@
 package exchange.core2.orderbook.naive;
 
 import exchange.core2.orderbook.*;
+import exchange.core2.orderbook.events.CommandProcessingResponse;
+import exchange.core2.orderbook.events.ReduceEvent;
+import exchange.core2.orderbook.events.TradeEvent;
+import exchange.core2.orderbook.events.TradeEventsBlock;
 import exchange.core2.tests.util.L2MarketDataHelper;
 import org.agrona.ExpandableDirectByteBuffer;
 import org.agrona.MutableDirectBuffer;
+import org.agrona.collections.MutableLong;
 import org.hamcrest.core.Is;
+import org.hamcrest.core.IsNot;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Optional;
 
 import static exchange.core2.orderbook.IOrderBook.*;
 import static exchange.core2.orderbook.OrderAction.ASK;
 import static exchange.core2.orderbook.OrderAction.BID;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 
 /**
@@ -45,11 +55,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 @RunWith(MockitoJUnitRunner.class)
 public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderBookBaseTest.class);
+
     protected IOrderBook<S> orderBook;
 
     private L2MarketDataHelper expectedState;
 
-    protected MutableDirectBuffer responseBuffer = new ExpandableDirectByteBuffer(2048);
+    protected MutableDirectBuffer responseBuffer = new ExpandableDirectByteBuffer(256);
+//    protected MutableDirectBuffer responseBuffer = new ExpandableArrayBuffer(256);
 
 //    protected CommandsEncoder commandsEncoder = new CommandsEncoder(commandsBuffer);
 
@@ -69,8 +82,8 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         orderBook = createNewOrderBook(responseBuffer);
         orderBook.validateInternalState();
 
-        placeOrder(ORDER_TYPE_GTC, 0L, UID_2, INITIAL_PRICE, 0L, 13L, ASK);
-        cancel(0L, UID_2, MATCHING_SUCCESS);
+        placeOrder(ORDER_TYPE_GTC, -1L, UID_2, INITIAL_PRICE, 0L, 13L, ASK);
+        cancel(-1L, UID_2, MATCHING_SUCCESS);
 
         placeOrder(ORDER_TYPE_GTC, 1L, UID_1, 81600L, 0L, 100L, ASK);
         placeOrder(ORDER_TYPE_GTC, 2L, UID_1, 81599L, 0L, 50L, ASK);
@@ -111,22 +124,25 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         clearOrderBook();
     }
 
-    void clearOrderBook() {
+    protected void clearOrderBook() {
         orderBook.validateInternalState();
         L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE);
 
         // match all asks
         long askSum = Arrays.stream(snapshot.askVolumes).sum();
-        placeOrder(ORDER_TYPE_IOC, 100000000000L, -1, MAX_PRICE, MAX_PRICE, askSum, BID);
+        if (askSum > 0) {
+            placeOrder(ORDER_TYPE_IOC, 100000000000L, -1, MAX_PRICE, MAX_PRICE, askSum, BID);
 
 //        log.debug("{}", orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE).dumpOrderBook());
 
-        orderBook.validateInternalState();
+            orderBook.validateInternalState();
+        }
 
         // match all bids
         long bidSum = Arrays.stream(snapshot.bidVolumes).sum();
-        placeOrder(ORDER_TYPE_IOC, 100000000001L, -2, 1, 0, bidSum, ASK);
-
+        if (bidSum > 0) {
+            placeOrder(ORDER_TYPE_IOC, 100000000001L, -2, 1, 0, bidSum, ASK);
+        }
 //        log.debug("{}", orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE).dumpOrderBook());
 
         assertThat(orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE).askSize, Is.is(0));
@@ -169,20 +185,27 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         assertThat(snapshot, Is.is(expectedState.build()));
         orderBook.validateInternalState();
 
-        //        log.debug("{}", dumpOrderBook(snapshot));
+        //log.debug("{}", dumpOrderBook(snapshot));
     }
 
     /**
      * Ignore order with duplicate orderId
      */
-//    @Test
-//    public void shouldIgnoredDuplicateOrder() {
-//        placeOrder(ORDER_TYPE_GTC, 1, UID_1, 81600, 0, 100, ASK);
-//        List<MatcherTradeEvent> events = orderCommand.extractEvents();
-//        assertThat(events.size(), is(1));
-//    }
+    @Test
+    public void shouldIgnoredDuplicateOrder() {
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 1, UID_1, 81600, 0, 100, ASK);
 
-//
+        Optional<ReduceEvent> reduceEventOpt = res.getTradeEventsBlock().flatMap(TradeEventsBlock::getReduceEvent);
+
+        assertTrue(reduceEventOpt.isPresent());
+
+        ReduceEvent reduceEvent = reduceEventOpt.get();
+        assertThat(reduceEvent.getReducedVolume(), Is.is(100L));
+
+        // TODO finish
+    }
+
+    //
 //    /**
 //     * Remove existing order
 //     */
@@ -821,28 +844,75 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 //    }
 //
     // ------------------------------- UTILITY METHODS --------------------------
-    protected void placeOrder(final byte type,
-                              final long orderId,
-                              final long uid,
-                              final long price,
-                              final long reservedBidPrice,
-                              final long size,
-                              final OrderAction action) {
+    protected CommandProcessingResponse placeOrder(final byte type,
+                                                   final long orderId,
+                                                   final long uid,
+                                                   final long price,
+                                                   final long reservedBidPrice,
+                                                   final long size,
+                                                   final OrderAction action) {
+
         orderBook.newOrder(CommandsEncoder.placeOrder(type, orderId, uid, price, reservedBidPrice, size, action), 0);
 
-        // TODO check state
+        final CommandProcessingResponse response = ResponseDecoder.readResult(responseBuffer, 0);
 
-//        assertThat(resultCode, Is.is(expectedCmdState));
+        assertThat(response.getResultCode(), Is.is(MATCHING_SUCCESS));
+
+        final Optional<TradeEventsBlock> tradeEventsBlockOpt = response.getTradeEventsBlock();
+
+        if (type != ORDER_TYPE_GTC) {
+            // trades block is mandatory for non GTC orders
+            assertTrue(tradeEventsBlockOpt.isPresent());
+        }
+
+        if (tradeEventsBlockOpt.isPresent()) {
+
+            final TradeEventsBlock tradeEventsBlock = tradeEventsBlockOpt.get();
+
+            assertThat(tradeEventsBlock.getTakerAction(), Is.is(action));
+            assertThat(tradeEventsBlock.getTakerOrderId(), Is.is(orderId));
+            assertThat(tradeEventsBlock.getTakerUid(), Is.is(uid));
+
+            final MutableLong totalVolumeInEvents = new MutableLong();
+
+            final Optional<ReduceEvent> reduceEventOpt = tradeEventsBlock.getReduceEvent();
+            final TradeEvent[] trades = tradeEventsBlock.getTrades();
+            assertTrue(reduceEventOpt.isPresent() || trades.length != 0);
+
+            reduceEventOpt.ifPresent(reduceEvent -> {
+                assertThat(reduceEvent.getPrice(), Is.is(price));
+                assertThat(reduceEvent.getReservedBidPrice(), Is.is(action == BID ? reservedBidPrice : 0L));
+                assertTrue(reduceEvent.getReducedVolume() > 0);
+                totalVolumeInEvents.addAndGet(reduceEvent.getReducedVolume());
+            });
+
+            Arrays.stream(trades).forEach(trade -> {
+                assertThat(trade.getMakerOrderId(), IsNot.not(0L));
+                assertThat(trade.getMakerUid(), IsNot.not(0L));
+                assertTrue(trade.getReservedBidPrice() > 0);
+                assertTrue(trade.getTradePrice() > 0);
+                assertTrue(trade.getTradeVolume() > 0);
+                totalVolumeInEvents.addAndGet(trade.getTradeVolume());
+            });
+
+            if (type != ORDER_TYPE_GTC) {
+                assertThat(totalVolumeInEvents.get(), Is.is(size));
+            }
+        }
+
         orderBook.validateInternalState();
+        return response;
     }
 
     protected void cancel(final long orderId,
                           final long uid,
-                          final int expectedCmdState) {
+                          final short expectedCmdState) {
 
         orderBook.cancelOrder(CommandsEncoder.cancel(orderId, uid), 0);
 
-//        assertThat(resultCode, Is.is(expectedCmdState));
+        final CommandProcessingResponse response = ResponseDecoder.readResult(responseBuffer, 0);
+        assertThat(response.getResultCode(), Is.is(expectedCmdState));
+
         orderBook.validateInternalState();
     }
 

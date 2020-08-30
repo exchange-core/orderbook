@@ -26,4 +26,13 @@ public class ReduceEvent {
     public long getReservedBidPrice() {
         return reservedBidPrice;
     }
+
+    @Override
+    public String toString() {
+        return "ReduceEvent{" +
+                "reducedVolume=" + reducedVolume +
+                ", price=" + price +
+                ", reservedBidPrice=" + reservedBidPrice +
+                '}';
+    }
 }

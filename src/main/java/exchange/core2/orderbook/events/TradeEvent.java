@@ -47,4 +47,16 @@ public final class TradeEvent {
     public boolean isMakerOrderCompleted() {
         return makerOrderCompleted;
     }
+
+    @Override
+    public String toString() {
+        return "TradeEvent{" +
+                "makerOrderId=" + makerOrderId +
+                ", makerUid=" + makerUid +
+                ", tradePrice=" + tradePrice +
+                ", reservedBidPrice=" + reservedBidPrice +
+                ", tradeVolume=" + tradeVolume +
+                ", makerOrderCompleted=" + makerOrderCompleted +
+                '}';
+    }
 }

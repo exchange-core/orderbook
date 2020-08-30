@@ -83,4 +83,18 @@ public final class NaivePendingOrder implements IOrder {
                 //userCookie,
                 uid);
     }
+
+    @Override
+    public String toString() {
+        return "NaivePendingOrder{" +
+                "orderId=" + orderId +
+                ", price=" + price +
+                ", size=" + size +
+                ", filled=" + filled +
+                ", reserveBidPrice=" + reserveBidPrice +
+                ", action=" + action +
+                ", uid=" + uid +
+                ", timestamp=" + timestamp +
+                '}';
+    }
 }

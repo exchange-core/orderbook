@@ -203,7 +203,7 @@ public class L2MarketDataHelper {
     }
 
 
-    public String dumpOrderBook(L2MarketData l2MarketData) {
+    public static String dumpOrderBook(L2MarketData l2MarketData) {
 
         int askSize = l2MarketData.askSize;
         int bidSize = l2MarketData.bidSize;
@@ -215,26 +215,43 @@ public class L2MarketDataHelper {
         long[] bidVolumes = l2MarketData.bidVolumes;
         long[] bidOrders = l2MarketData.bidOrders;
 
-        int priceWith = maxWidth(2, Arrays.copyOf(askPrices, askSize), Arrays.copyOf(bidPrices, bidSize));
-        int volWith = maxWidth(2, Arrays.copyOf(askVolumes, askSize), Arrays.copyOf(bidVolumes, bidSize));
+        int priceWidth = maxWidth(2, Arrays.copyOf(askPrices, askSize), Arrays.copyOf(bidPrices, bidSize));
+        int volWidth = maxWidth(2, Arrays.copyOf(askVolumes, askSize), Arrays.copyOf(bidVolumes, bidSize));
         int ordWith = maxWidth(2, Arrays.copyOf(askOrders, askSize), Arrays.copyOf(bidOrders, bidSize));
 
         StringBuilder s = new StringBuilder("Order book:\n");
-        s.append(".").append(Strings.repeat("-", priceWith - 2)).append("ASKS").append(Strings.repeat("-", volWith - 1)).append(".\n");
+        s.append(".")
+                .append(Strings.repeat("-", priceWidth - 1))
+                .append("ASKS")
+                .append(Strings.repeat("-", volWidth + ordWith - 1))
+
+                .append(".\n");
         for (int i = askSize - 1; i >= 0; i--) {
-            String price = Strings.padStart(String.valueOf(askPrices[i]), priceWith, ' ');
-            String volume = Strings.padStart(String.valueOf(askVolumes[i]), volWith, ' ');
+            String price = Strings.padStart(String.valueOf(askPrices[i]), priceWidth, ' ');
+            String volume = Strings.padStart(String.valueOf(askVolumes[i]), volWidth, ' ');
             String orders = Strings.padStart(String.valueOf(askOrders[i]), ordWith, ' ');
             s.append(String.format("|%s|%s|%s|\n", price, volume, orders));
         }
-        s.append("|").append(Strings.repeat("-", priceWith)).append("+").append(Strings.repeat("-", volWith)).append("|\n");
+
+        s.append("|")
+                .append(Strings.repeat("-", priceWidth))
+                .append("+")
+                .append(Strings.repeat("-", volWidth))
+                .append("+")
+                .append(Strings.repeat("-", ordWith))
+                .append("|\n");
+
         for (int i = 0; i < bidSize; i++) {
-            String price = Strings.padStart(String.valueOf(bidPrices[i]), priceWith, ' ');
-            String volume = Strings.padStart(String.valueOf(bidVolumes[i]), volWith, ' ');
+            String price = Strings.padStart(String.valueOf(bidPrices[i]), priceWidth, ' ');
+            String volume = Strings.padStart(String.valueOf(bidVolumes[i]), volWidth, ' ');
             String orders = Strings.padStart(String.valueOf(bidOrders[i]), ordWith, ' ');
             s.append(String.format("|%s|%s|%s|\n", price, volume, orders));
         }
-        s.append("'").append(Strings.repeat("-", priceWith - 2)).append("BIDS").append(Strings.repeat("-", volWith - 1)).append("'\n");
+        s.append("'")
+                .append(Strings.repeat("-", priceWidth - 1))
+                .append("BIDS")
+                .append(Strings.repeat("-", volWidth + ordWith - 1))
+                .append("'\n");
         return s.toString();
     }
 

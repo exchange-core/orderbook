@@ -87,6 +87,11 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long size = buffer.getLong(offset + PLACE_OFFSET_SIZE);
         final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
 
+        if (size <= 0) {
+            updateResponse(IOrderBook.MATCHING_INCORRECT_ORDER_SIZE);
+            return;
+        }
+
         // check if order is marketable (if there are opposite matching orders)
         final SortedMap<Long, OrdersBucketNaive> subTree = subtreeForMatching(action, price);
         final long filledSize = tryMatchInstantly(size, reserveBidPrice, subTree, 0);
@@ -107,10 +112,14 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         }
 
         if (idMap.containsKey(newOrderId)) {
-            // duplicate order id - can match, but can not place
+            // duplicate order id - can match, but can not place - reject it
+            eventsHelper.appendRejectEvent(price, reserveBidPrice, size - filledSize);
 
-            eventsHelper.attachRejectEvent(price, price, size - filledSize);
-            log.warn("duplicate order id: {}", newOrderId);
+            // fill header, overwrite takerOrderCompleted=true
+            eventsHelper.fillEventsHeader(newOrderId, uid, true, action);
+
+            log.warn("reject duplicate order id: {}", newOrderId);
+            return;
         }
 
         // normally placing regular GTC limit order
@@ -136,15 +145,22 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long price = buffer.getLong(offset + PLACE_OFFSET_PRICE);
         final long size = buffer.getLong(offset + PLACE_OFFSET_SIZE);
         final OrderAction action = OrderAction.of(buffer.getByte(offset + PLACE_OFFSET_ACTION));
+        final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
+
+        if (size <= 0) {
+            updateResponse(IOrderBook.MATCHING_INCORRECT_ORDER_SIZE);
+            return;
+        }
+
 
         final SortedMap<Long, OrdersBucketNaive> subtree = subtreeForMatching(action, price);
-        final long filledSize = tryMatchInstantly(size, price, subtree, 0);
+        final long filledSize = tryMatchInstantly(size, reserveBidPrice, subtree, 0);
 
         final long rejectedSize = size - filledSize;
 
         if (rejectedSize != 0) {
             // was not matched completely - send reject for not-completed IoC order
-            eventsHelper.attachRejectEvent(price, price, rejectedSize);
+            eventsHelper.appendRejectEvent(price, reserveBidPrice, rejectedSize);
         }
 
         // fill header (trade/reduce events are always generated for IoC orders)
@@ -159,18 +175,24 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final OrderAction action = OrderAction.of(buffer.getByte(offset + PLACE_OFFSET_ACTION));
         final long size = buffer.getLong(offset + PLACE_OFFSET_SIZE);
 
+        if (size <= 0) {
+            updateResponse(IOrderBook.MATCHING_INCORRECT_ORDER_SIZE);
+            return;
+        }
+
         final SortedMap<Long, OrdersBucketNaive> fullSubtree = action == OrderAction.ASK ? bidBuckets : askBuckets;
 
         final Optional<Long> budget = checkBudgetToFill(size, fullSubtree);
 
         final long price = buffer.getLong(offset + PLACE_OFFSET_PRICE);
+        final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
 
         if (logDebug) log.debug("Budget calc: {} requested: {}", budget, price);
 
         if (budget.isPresent() && isBudgetLimitSatisfied(action, budget.get(), price)) {
-            tryMatchInstantly(size, price, fullSubtree, 0);
+            tryMatchInstantly(size, reserveBidPrice, fullSubtree, 0);
         } else {
-            eventsHelper.attachRejectEvent(price, price, size);
+            eventsHelper.appendRejectEvent(price, reserveBidPrice, size);
         }
 
         // fill header (trade/reduce events are always generated for FoK orders)
@@ -230,7 +252,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             final SortedMap<Long, OrdersBucketNaive> matchingBuckets,
             long filled) {
 
-//        log.info("matchInstantly: {} {}", order, matchingBuckets);
+//        log.info("matchInstantly: takerSize={} filled={} {}", takerSize, filled, matchingBuckets);
 
         if (matchingBuckets.size() == 0) {
             return filled;
@@ -299,7 +321,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 order.action);
 
         // put reduce event
-        eventsHelper.sendReduceEvent(
+        eventsHelper.writeSingleReduceEvent(
                 order.price,
                 order.reserveBidPrice,
                 order.getSize() - order.getFilled());
@@ -354,7 +376,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 order.action);
 
         // send reduce event
-        eventsHelper.sendReduceEvent(
+        eventsHelper.writeSingleReduceEvent(
                 order.price,
                 order.reserveBidPrice,
                 reduceBy);
@@ -550,11 +572,15 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         return buckets.values().stream().mapToLong(OrdersBucketNaive::getTotalVolume).sum();
     }
 
-
     private void initResponse(final short responseCode) {
         resultsBuffer.putShort(IOrderBook.RESPONSE_OFFSET_HEADER_RETURN_CODE, responseCode);
         resultsBuffer.putInt(IOrderBook.RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM, 0);
         resultsBuffer.putByte(IOrderBook.RESPONSE_OFFSET_HEADER_REDUCE_EVT, (byte) 0);
+
+//        log.debug("BUF after initResponse: \n{}", PrintBufferUtil.hexDump(resultsBuffer, 0, 128));
+    }
+
+    private void updateResponse(final short responseCode) {
+        resultsBuffer.putShort(IOrderBook.RESPONSE_OFFSET_HEADER_RETURN_CODE, responseCode);
     }
 }
-

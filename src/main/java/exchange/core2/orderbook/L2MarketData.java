@@ -16,6 +16,7 @@
 package exchange.core2.orderbook;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * L2 Market Data carrier object
@@ -140,5 +141,31 @@ public final class L2MarketData {
 
     }
 
-    // TODO hashcode
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(askSize, bidSize);
+        result = 31 * result + Arrays.hashCode(askPrices);
+        result = 31 * result + Arrays.hashCode(askVolumes);
+        result = 31 * result + Arrays.hashCode(askOrders);
+        result = 31 * result + Arrays.hashCode(bidPrices);
+        result = 31 * result + Arrays.hashCode(bidVolumes);
+        result = 31 * result + Arrays.hashCode(bidOrders);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "L2MarketData{" +
+                "askSize=" + askSize +
+                ", bidSize=" + bidSize +
+                ", askPrices=" + Arrays.toString(askPrices) +
+                ", askVolumes=" + Arrays.toString(askVolumes) +
+                ", askOrders=" + Arrays.toString(askOrders) +
+                ", bidPrices=" + Arrays.toString(bidPrices) +
+                ", bidVolumes=" + Arrays.toString(bidVolumes) +
+                ", bidOrders=" + Arrays.toString(bidOrders) +
+                ", timestamp=" + timestamp +
+                ", referenceSeq=" + referenceSeq +
+                '}';
+    }
 }

@@ -84,12 +84,12 @@ public class L2MarketDataHelper {
         throw new IllegalArgumentException("Can not collect size " + size);
     }
 
-    public L2MarketDataHelper setAskPrice(int pos, int askPrice) {
+    public L2MarketDataHelper setAskPrice(int pos, long askPrice) {
         askPrices[pos] = askPrice;
         return this;
     }
 
-    public L2MarketDataHelper setBidPrice(int pos, int bidPrice) {
+    public L2MarketDataHelper setBidPrice(int pos, long bidPrice) {
         bidPrices[pos] = bidPrice;
         return this;
     }
@@ -114,13 +114,13 @@ public class L2MarketDataHelper {
         return this;
     }
 
-    public L2MarketDataHelper setAskPriceVolume(int pos, int askPrice, long askVolume) {
+    public L2MarketDataHelper setAskPriceVolume(int pos, long askPrice, long askVolume) {
         askVolumes[pos] = askVolume;
         askPrices[pos] = askPrice;
         return this;
     }
 
-    public L2MarketDataHelper setBidPriceVolume(int pos, int bidPrice, long bidVolume) {
+    public L2MarketDataHelper setBidPriceVolume(int pos, long bidPrice, long bidVolume) {
         bidVolumes[pos] = bidVolume;
         bidPrices[pos] = bidPrice;
         return this;
@@ -174,28 +174,28 @@ public class L2MarketDataHelper {
         return this;
     }
 
-    public L2MarketDataHelper insertAsk(int pos, int price, long volume) {
+    public L2MarketDataHelper insertAsk(int pos, long price, long volume) {
         askPrices = ArrayUtils.insert(pos, askPrices, price);
         askVolumes = ArrayUtils.insert(pos, askVolumes, volume);
         askOrders = ArrayUtils.insert(pos, askOrders, 1);
         return this;
     }
 
-    public L2MarketDataHelper insertBid(int pos, int price, long volume) {
+    public L2MarketDataHelper insertBid(int pos, long price, long volume) {
         bidPrices = ArrayUtils.insert(pos, bidPrices, price);
         bidVolumes = ArrayUtils.insert(pos, bidVolumes, volume);
         bidOrders = ArrayUtils.insert(pos, bidOrders, 1);
         return this;
     }
 
-    public L2MarketDataHelper addAsk(int price, long volume) {
+    public L2MarketDataHelper addAsk(long price, long volume) {
         askPrices = ArrayUtils.add(askPrices, price);
         askVolumes = ArrayUtils.add(askVolumes, volume);
         askOrders = ArrayUtils.add(askOrders, 1);
         return this;
     }
 
-    public L2MarketDataHelper addBid(int price, long volume) {
+    public L2MarketDataHelper addBid(long price, long volume) {
         bidPrices = ArrayUtils.add(bidPrices, price);
         bidVolumes = ArrayUtils.add(bidVolumes, volume);
         bidOrders = ArrayUtils.add(bidOrders, 1);

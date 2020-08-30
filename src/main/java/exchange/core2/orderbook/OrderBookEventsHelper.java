@@ -58,7 +58,7 @@ public final class OrderBookEventsHelper {
                                        final long bidderHoldPrice,
                                        final long reduceSize) {
 
-        resultsBuffer.putInt(RESPONSE_OFFSET_HEADER_REDUCE_EVT, 1);
+        resultsBuffer.putByte(RESPONSE_OFFSET_HEADER_REDUCE_EVT, (byte) 1);
 
         // fixed offset beacuse reduce is always a single event
         resultsBuffer.putLong(RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_REVT_PRICE, price);
@@ -70,13 +70,15 @@ public final class OrderBookEventsHelper {
                                   final long bidderHoldPrice,
                                   final long reduceSize) {
 
-        final int tradeEventsNum = resultsBuffer.getInt(IOrderBook.RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM);
+        final int tradeEventsNum = resultsBuffer.getInt(RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM);
+        resultsBuffer.putByte(RESPONSE_OFFSET_HEADER_REDUCE_EVT, (byte) 1);
+
+        // calculate offset based on number of trades written
         final int offset = IOrderBook.getTradeEventOffset(tradeEventsNum);
-        resultsBuffer.putInt(IOrderBook.RESPONSE_OFFSET_HEADER_REDUCE_EVT, 1);
 
         resultsBuffer.putLong(offset + RESPONSE_OFFSET_REVT_PRICE, price);
         resultsBuffer.putLong(offset + RESPONSE_OFFSET_REVT_RESERV_BID_PRICE, bidderHoldPrice); // matching order reserved price for released Exchange Bids funds
-        resultsBuffer.putLong(offset + IOrderBook.RESPONSE_OFFSET_REVT_REDUCED_VOL, reduceSize);
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_REVT_REDUCED_VOL, reduceSize);
     }
 
     public void fillEventsHeader(final long takerOrderId,

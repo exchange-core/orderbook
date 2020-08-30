@@ -80,7 +80,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     IOrder getOrderById(long orderId);
 
     // testing only - validateInternalState without changing state
-    void validateInternalState();
+    void verifyInternalState();
 
     /**
      * Search for all orders for specified user.<p>
@@ -101,7 +101,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
 
     /**
      * State hash for order books is implementation-agnostic
-     * Look {@link IOrderBook#validateInternalState} for full internal state validation for de-serialized objects
+     * Look {@link IOrderBook#verifyInternalState} for full internal state validation for de-serialized objects
      *
      * @return state hash code
      */
@@ -174,13 +174,13 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * Error code
      */
 
-    short MATCHING_SUCCESS = 0;
+    short RESULT_SUCCESS = 0;
 
-    short MATCHING_UNKNOWN_ORDER_ID = -3002;
-    short MATCHING_UNSUPPORTED_COMMAND = -3004;
-    short MATCHING_INVALID_ORDER_BOOK_ID = -3005;
-    short MATCHING_INCORRECT_ORDER_SIZE = -3006;
-    short MATCHING_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = -3041;
+    short RESULT_UNKNOWN_ORDER_ID = -3002;
+    short RESULT_UNSUPPORTED_COMMAND = -3004;
+    short RESULT_INVALID_ORDER_BOOK_ID = -3005;
+    short RESULT_INCORRECT_ORDER_SIZE = -3006;
+    short RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = -3041;
 
     /*
      * Incoming message offsets

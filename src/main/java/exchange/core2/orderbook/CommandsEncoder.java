@@ -40,4 +40,30 @@ public final class CommandsEncoder {
         return buf;
     }
 
+    public static MutableDirectBuffer reduce(final long orderId,
+                                             final long uid,
+                                             final long size) {
+
+        final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(24);
+
+        buf.putLong(REDUCE_OFFSET_UID, uid);
+        buf.putLong(REDUCE_OFFSET_ORDER_ID, orderId);
+        buf.putLong(REDUCE_OFFSET_SIZE, size);
+
+        return buf;
+    }
+
+    public static MutableDirectBuffer move(final long orderId,
+                                           final long uid,
+                                           final long price) {
+
+        final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(24);
+
+        buf.putLong(MOVE_OFFSET_END, uid);
+        buf.putLong(MOVE_OFFSET_ORDER_ID, orderId);
+        buf.putLong(MOVE_OFFSET_PRICE, price);
+
+        return buf;
+    }
+
 }

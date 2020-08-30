@@ -61,7 +61,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         final byte orderType = buffer.getByte(offset + PLACE_OFFSET_TYPE);
 
-        initResponse(IOrderBook.MATCHING_SUCCESS);
+        initResponse(IOrderBook.RESULT_SUCCESS);
 
         switch (orderType) {
             case ORDER_TYPE_GTC:
@@ -88,7 +88,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
 
         if (size <= 0) {
-            updateResponse(IOrderBook.MATCHING_INCORRECT_ORDER_SIZE);
+            updateResponse(IOrderBook.RESULT_INCORRECT_ORDER_SIZE);
             return;
         }
 
@@ -148,7 +148,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
 
         if (size <= 0) {
-            updateResponse(IOrderBook.MATCHING_INCORRECT_ORDER_SIZE);
+            updateResponse(IOrderBook.RESULT_INCORRECT_ORDER_SIZE);
             return;
         }
 
@@ -176,7 +176,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long size = buffer.getLong(offset + PLACE_OFFSET_SIZE);
 
         if (size <= 0) {
-            updateResponse(IOrderBook.MATCHING_INCORRECT_ORDER_SIZE);
+            updateResponse(IOrderBook.RESULT_INCORRECT_ORDER_SIZE);
             return;
         }
 
@@ -294,7 +294,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // order already matched and removed from order book previously
-            initResponse(MATCHING_UNKNOWN_ORDER_ID);
+            initResponse(RESULT_UNKNOWN_ORDER_ID);
             return;
         }
 
@@ -311,7 +311,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             buckets.remove(price);
         }
 
-        initResponse(MATCHING_SUCCESS);
+        initResponse(RESULT_SUCCESS);
 
         // fill events header
         eventsHelper.fillEventsHeader(
@@ -337,7 +337,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // already matched, moved or cancelled
-            initResponse(MATCHING_UNKNOWN_ORDER_ID);
+            initResponse(RESULT_UNKNOWN_ORDER_ID);
             return;
         }
 
@@ -366,20 +366,23 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             ordersBucket.reduceSize(reduceBy);
         }
 
-        initResponse(MATCHING_SUCCESS);
+        initResponse(RESULT_SUCCESS);
 
-        // fill events header
-        eventsHelper.fillEventsHeader(
-                orderId,
-                cmdUid,
-                canRemove,
-                order.action);
+        if (reduceBy != 0) {
 
-        // send reduce event
-        eventsHelper.writeSingleReduceEvent(
-                order.price,
-                order.reserveBidPrice,
-                reduceBy);
+            // fill events header
+            eventsHelper.fillEventsHeader(
+                    orderId,
+                    cmdUid,
+                    canRemove,
+                    order.action);
+
+            // send reduce event
+            eventsHelper.writeSingleReduceEvent(
+                    order.price,
+                    order.reserveBidPrice,
+                    reduceBy);
+        }
     }
 
     @Override
@@ -392,17 +395,17 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // already matched, moved or cancelled
-            initResponse(MATCHING_UNKNOWN_ORDER_ID);
+            initResponse(RESULT_UNKNOWN_ORDER_ID);
             return;
         }
 
         // reserved price risk check for exchange bids
         if (order.action == OrderAction.BID && symbolSpec.isExchangeType() && newPrice > order.reserveBidPrice) {
-            initResponse(MATCHING_MOVE_FAILED_PRICE_OVER_RISK_LIMIT);
+            initResponse(RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT);
             return;
         }
 
-        initResponse(MATCHING_SUCCESS);
+        initResponse(RESULT_SUCCESS);
 
         final long price = order.price;
         final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.action);
@@ -519,7 +522,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
     }
 
     @Override
-    public void validateInternalState() {
+    public void verifyInternalState() {
         askBuckets.values().forEach(OrdersBucketNaive::validate);
         bidBuckets.values().forEach(OrdersBucketNaive::validate);
     }

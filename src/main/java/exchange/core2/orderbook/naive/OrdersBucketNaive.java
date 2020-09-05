@@ -207,15 +207,4 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
                 && getAllOrders().equals(other.getAllOrders());
     }
 
-    public final class MatcherResult {
-
-        public MatcherResult(long volume, List<Long> ordersToRemove) {
-            this.volume = volume;
-            this.ordersToRemove = ordersToRemove;
-        }
-
-        public long volume;
-        public List<Long> ordersToRemove;
-    }
-
 }

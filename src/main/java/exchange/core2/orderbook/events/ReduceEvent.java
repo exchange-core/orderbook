@@ -1,5 +1,7 @@
 package exchange.core2.orderbook.events;
 
+import java.util.Objects;
+
 public class ReduceEvent {
 
     private final long reducedVolume;
@@ -34,5 +36,20 @@ public class ReduceEvent {
                 ", price=" + price +
                 ", reservedBidPrice=" + reservedBidPrice +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReduceEvent that = (ReduceEvent) o;
+        return reducedVolume == that.reducedVolume &&
+                price == that.price &&
+                reservedBidPrice == that.reservedBidPrice;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(reducedVolume, price, reservedBidPrice);
     }
 }

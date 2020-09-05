@@ -59,7 +59,7 @@ public final class CommandsEncoder {
 
         final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(24);
 
-        buf.putLong(MOVE_OFFSET_END, uid);
+        buf.putLong(MOVE_OFFSET_UID, uid);
         buf.putLong(MOVE_OFFSET_ORDER_ID, orderId);
         buf.putLong(MOVE_OFFSET_PRICE, price);
 

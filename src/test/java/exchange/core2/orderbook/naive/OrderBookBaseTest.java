@@ -94,10 +94,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         placeOrder(ORDER_TYPE_GTC, 9L, UID_1, 201000L, 0L, 32L, ASK);
         placeOrder(ORDER_TYPE_GTC, 10L, UID_1, 200954L, 0L, 10L, ASK);
 
-        placeOrder(ORDER_TYPE_GTC, 4L, UID_1, 81593L, 82000L, 40L, BID);
-        placeOrder(ORDER_TYPE_GTC, 5L, UID_1, 81590L, 82000L, 20L, BID);
-        placeOrder(ORDER_TYPE_GTC, 6L, UID_1, 81590L, 82000L, 1L, BID);
-        placeOrder(ORDER_TYPE_GTC, 7L, UID_1, 81200L, 82000L, 20L, BID);
+        placeOrder(ORDER_TYPE_GTC, 4L, UID_1, 81593L, 82001L, 40L, BID);
+        placeOrder(ORDER_TYPE_GTC, 5L, UID_1, 81590L, 82004L, 20L, BID);
+        placeOrder(ORDER_TYPE_GTC, 6L, UID_1, 81590L, 82020L, 1L, BID);
+        placeOrder(ORDER_TYPE_GTC, 7L, UID_1, 81200L, 82044L, 20L, BID);
         placeOrder(ORDER_TYPE_GTC, 11L, UID_1, 10000L, 12000L, 12L, BID);
         placeOrder(ORDER_TYPE_GTC, 12L, UID_1, 10000L, 12000L, 1L, BID);
         placeOrder(ORDER_TYPE_GTC, 13L, UID_1, 9136L, 12000L, 2L, BID);
@@ -210,21 +210,21 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
      * Remove existing order
      */
     @Test
-    public void shouldRemoveBidOrder() {
+    public void shouldCancelBidOrder() {
 
-        // remove bid order
+        // cancel bid order
         CommandProcessingResponse res = cancel(5L, UID_1);
 
         expectedState.setBidVolume(1, 1).decrementBidOrdersNum(1);
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
 
-        verifySingleReduceEvent(res, UID_1, 5L, BID, 81590L, 82000L, 20L, true);
+        verifySingleReduceEvent(res, UID_1, 5L, BID, 81590L, 82004L, 20L, true);
     }
 
 
     @Test
-    public void shouldRemoveAskOrder() {
-        // remove ask order
+    public void shouldCancelAskOrder() {
+        // cancel ask order
         CommandProcessingResponse res = cancel(2L, UID_1);
 
         expectedState.setAskVolume(0, 25).decrementAskOrdersNum(0);
@@ -242,7 +242,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         expectedState.decrementBidVolume(1, 3L);
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
 
-        verifySingleReduceEvent(res, UID_1, 5L, BID, 81590L, 82000L, 3L, false);
+        verifySingleReduceEvent(res, UID_1, 5L, BID, 81590L, 82004L, 3L, false);
     }
 
 
@@ -291,7 +291,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
      * When cancelling an order, order book implementation should also remove a bucket if no orders left for specified price
      */
     @Test
-    public void shouldRemoveOrderAndEmptyBucket() {
+    public void shouldCancelOrderAndEmptyBucket() {
         CommandProcessingResponse res = cancel(2L, UID_1);
 
         verifySingleReduceEvent(res, UID_1, 2L, ASK, 81599L, 0L, 50L, true);
@@ -334,7 +334,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldReturnErrorWhenMoveUnknownOrder() {
 
-        CommandProcessingResponse res = move(2433, UID_1, 300, RESULT_UNKNOWN_ORDER_ID);
+        CommandProcessingResponse res = move(2433L, UID_1, 300L, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
     }
@@ -342,73 +342,59 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldReturnErrorWhenReducingUnknownOrder() {
 
-        CommandProcessingResponse res = reduce(3, UID_2, 1, RESULT_UNKNOWN_ORDER_ID);
+        CommandProcessingResponse res = reduce(329813L, UID_1, 1L, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
     }
 
 
+    @Test
+    public void shouldReturnErrorWhenReducingOtherUserOrder() {
+
+        CommandProcessingResponse res = reduce(8L, UID_2, 3L, RESULT_UNKNOWN_ORDER_ID);
+        verifyNoEvents(res);
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+    }
+
+    @Test
+    public void shouldMoveOrderIntoExistingBucket() {
+        CommandProcessingResponse res = move(7L, UID_1, 81590L);
+        verifyNoEvents(res);
+
+        // moved
+        L2MarketData expected = expectedState.setBidVolume(1, 41L).incrementBidOrdersNum(1).removeBid(2).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+    }
+
+
+    @Test
+    public void shouldMoveOrderNewBucket() {
+        CommandProcessingResponse res = move(7L, UID_1, 81594L);
+        verifyNoEvents(res);
+
+        // moved
+        L2MarketData expected = expectedState.removeBid(2).insertBid(0, 81594L, 20L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+    }
+
+    // ------------------------ MATCHING TESTS -----------------------
+
+    @Test
+    public void shouldMatchIocOrderPartialBBO() {
+
+        // size=10
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 10L, ASK);
+
+        // best bid matched
+        L2MarketData expected = expectedState.setBidVolume(0, 30).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, ASK, true,
+                new TradeEvent(4L, UID_1, 81593L, 82001L, 10L, false));
+    }
+
     //
-//    @Test
-//    public void shouldReturnErrorWhenReducingOtherUserOrder() {
-//
-//        OrderCommand cmd = OrderCommand.reduce(8, UID_2, 3);
-//        processAndValidate(cmd, RESULT_UNKNOWN_ORDER_ID);
-//        assertNull(cmd.matcherEvent);
-//
-//        assertEquals(expectedState.build(), orderBook.getL2MarketDataSnapshot());
-//    }
-//
-//    @Test
-//    public void shouldMoveOrderExistingBucket() {
-//        OrderCommand cmd = OrderCommand.update(7, UID_1, 81590);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//
-//        // moved
-//        L2MarketData expected = expectedState.setBidVolume(1, 41).incrementBidOrdersNum(1).removeBid(2).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(0));
-//    }
-//
-//    @Test
-//    public void shouldMoveOrderNewBucket() {
-//        OrderCommand cmd = OrderCommand.update(7, UID_1, 81594);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//
-//        // moved
-//        L2MarketData expected = expectedState.removeBid(2).insertBid(0, 81594, 20).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(0));
-//    }
-//
-//    // ------------------------ MATCHING TESTS -----------------------
-//
-//    @Test
-//    public void shouldMatchIocOrderPartialBBO() {
-//
-//        // size=10
-//        OrderCommand cmd = CommandsEncoder.placeOrder(IOC, 123, UID_2, 1, 0, 10, ASK);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // best bid matched
-//        L2MarketData expected = expectedState.setBidVolume(0, 30).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(1));
-//        checkEventTrade(events.get(0), 4L, 81593, 10L);
-//    }
-//
-//
 //    @Test
 //    public void shouldMatchIocOrderFullBBO() {
 //
@@ -964,6 +950,30 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         assertThat(reduceEvent.getPrice(), is(price));
         assertThat(reduceEvent.getReservedBidPrice(), is(reservedBidPrice));
         assertThat(reduceEvent.getReducedVolume(), is(reducedVolume));
+    }
+
+
+    private void verifyTradeEvents(final CommandProcessingResponse res,
+                                   final long uid,
+                                   final long orderId,
+                                   final OrderAction action,
+                                   final boolean takerOrderCompleted,
+                                   final TradeEvent... tradeEvents) {
+
+        Optional<TradeEventsBlock> tradeEventsBlockOpt = res.getTradeEventsBlock();
+        assertTrue(tradeEventsBlockOpt.isPresent());
+        TradeEventsBlock tradeEventsBlock = tradeEventsBlockOpt.get();
+
+
+        assertThat(tradeEventsBlock.getTakerUid(), is(uid));
+        assertThat(tradeEventsBlock.getTakerOrderId(), is(orderId));
+        assertThat(tradeEventsBlock.getTakerAction(), is(action));
+        assertThat(tradeEventsBlock.isTakerOrderCompleted(), is(takerOrderCompleted));
+
+        assertThat(tradeEventsBlock.getTrades(), is(tradeEvents));
+
+        Optional<ReduceEvent> reduceEventOpt = tradeEventsBlock.getReduceEvent();
+        assertFalse(reduceEventOpt.isPresent());
     }
 
 

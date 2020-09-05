@@ -3,6 +3,7 @@ package exchange.core2.orderbook.events;
 import exchange.core2.orderbook.OrderAction;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 
 public class TradeEventsBlock {
@@ -63,5 +64,25 @@ public class TradeEventsBlock {
                 ", trades=" + Arrays.toString(trades) +
                 ", reduceEvent=" + reduceEvent +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TradeEventsBlock that = (TradeEventsBlock) o;
+        return takerOrderId == that.takerOrderId &&
+                takerUid == that.takerUid &&
+                takerOrderCompleted == that.takerOrderCompleted &&
+                takerAction == that.takerAction &&
+                Arrays.equals(trades, that.trades) &&
+                Objects.equals(reduceEvent, that.reduceEvent);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(takerOrderId, takerUid, takerOrderCompleted, takerAction, reduceEvent);
+        result = 31 * result + Arrays.hashCode(trades);
+        return result;
     }
 }

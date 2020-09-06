@@ -221,7 +221,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     // short response end (if REDUCE_EVT=0 and TRADES_EVT_NUM=0)
     int RESPONSE_OFFSET_HEADER_END = RESPONSE_OFFSET_HEADER_REDUCE_EVT + BitUtil.SIZE_OF_BYTE;
 
-    // trade block header (if REDUCE_EVT!=0 or TRADES_EVT_NUM!=0)
+    // trade block header (if REDUCE_EVT!=0 or TRADES_EVT_NUM!=0) // TODO add necessary information to calculate BUDGET type
     int RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID = RESPONSE_OFFSET_HEADER_END;
     int RESPONSE_OFFSET_TBLK_TAKER_UID = RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID + BitUtil.SIZE_OF_LONG;
     int RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED = RESPONSE_OFFSET_TBLK_TAKER_UID + BitUtil.SIZE_OF_LONG;

@@ -10,7 +10,7 @@ public class TradeEventsBlock {
 
     private final long takerOrderId;
     private final long takerUid;
-    private final boolean takerOrderCompleted;
+    private final boolean takerOrderCompleted; // when true - the order will never appear in the responses
     private final OrderAction takerAction;
     private final TradeEvent[] trades;
     private final ReduceEvent reduceEvent;

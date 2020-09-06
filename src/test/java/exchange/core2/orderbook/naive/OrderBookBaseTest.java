@@ -41,8 +41,7 @@ import static exchange.core2.orderbook.OrderAction.ASK;
 import static exchange.core2.orderbook.OrderAction.BID;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 
 /**
@@ -215,7 +214,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         // cancel bid order
         CommandProcessingResponse res = cancel(5L, UID_1);
 
-        expectedState.setBidVolume(1, 1).decrementBidOrdersNum(1);
+        expectedState.setBidVolume(1, 1L).decrementBidOrdersNum(1);
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
 
         verifySingleReduceEvent(res, UID_1, 5L, BID, 81590L, 82004L, 20L, true);
@@ -227,7 +226,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         // cancel ask order
         CommandProcessingResponse res = cancel(2L, UID_1);
 
-        expectedState.setAskVolume(0, 25).decrementAskOrdersNum(0);
+        expectedState.setAskVolume(0, 25L).decrementAskOrdersNum(0);
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
 
         verifySingleReduceEvent(res, UID_1, 2L, ASK, 81599L, 0L, 50L, true);
@@ -386,335 +385,318 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 10L, ASK);
 
         // best bid matched
-        L2MarketData expected = expectedState.setBidVolume(0, 30).build();
+        L2MarketData expected = expectedState.setBidVolume(0, 30L).build();
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
 
         verifyTradeEvents(
                 res, UID_2, 123L, ASK, true,
                 new TradeEvent(4L, UID_1, 81593L, 82001L, 10L, false));
+
+        assertNotNull(orderBook.getOrderById(4L));
+    }
+
+
+    @Test
+    public void shouldMatchIocOrderFullBBO() {
+
+        // size=40
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 40L, ASK);
+
+        // best bid matched
+        L2MarketData expected = expectedState.removeBid(0).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, ASK, true,
+                new TradeEvent(4L, UID_1, 81593L, 82001L, 40L, true));
+
+        // check order is removed from map
+        assertNull(orderBook.getOrderById(4L));
+    }
+
+    @Test
+    public void shouldMatchIocOrderWithTwoLimitOrdersPartial() {
+
+        // size=41
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 41L, ASK);
+
+        // best bid matched
+        L2MarketData expected = expectedState.removeBid(0).setBidVolume(0, 20L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, ASK, true,
+                new TradeEvent(4L, UID_1, 81593L, 82001L, 40L, true),
+                new TradeEvent(5L, UID_1, 81590L, 82004L, 1L, false));
+
+        // check orders are removed from map
+        assertNull(orderBook.getOrderById(4L));
+        assertNotNull(orderBook.getOrderById(5L));
+    }
+
+    @Test
+    public void shouldMatchIocOrderMultipleOrders() {
+
+        // size=175
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, MAX_PRICE, MAX_PRICE, 175L, BID);
+
+        // asks matched
+        L2MarketData expected = expectedState.removeAsk(0).removeAsk(0).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, MAX_PRICE, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, MAX_PRICE, 100L, true));
+
+        // check orders are removed from map
+        assertNull(orderBook.getOrderById(1L));
+        assertNull(orderBook.getOrderById(2L));
+        assertNull(orderBook.getOrderById(3L));
+    }
+
+
+    @Test
+    public void shouldMatchIocOrderWithRejection() {
+
+        // size=270
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, MAX_PRICE, MAX_PRICE + 1, 270L, BID);
+
+        // all asks matched
+        L2MarketData expected = expectedState.removeAllAsks().build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        // 6 trades generated, rejection with size=25 left unmatched
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new ReduceEvent(25L, MAX_PRICE, MAX_PRICE + 1),
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE + 1, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, MAX_PRICE + 1, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, MAX_PRICE + 1, 100L, true),
+                new TradeEvent(10L, UID_1, 200954L, MAX_PRICE + 1, 10L, true),
+                new TradeEvent(8L, UID_1, 201000L, MAX_PRICE + 1, 28L, true),
+                new TradeEvent(9L, UID_1, 201000L, MAX_PRICE + 1, 32L, true));
+    }
+
+    // ---------------------- FOK BUDGET ORDERS ---------------------------
+
+    @Test
+    public void shouldRejectFokBidOrderOutOfBudget() {
+
+        long size = 180L;
+        long buyBudget = expectedState.aggregateBuyBudget(size) - 1;
+        assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L * 5L - 1));
+
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
+
+        L2MarketData expected = expectedState.build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        // no trades generated, rejection with full size unmatched
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new ReduceEvent(size, buyBudget, buyBudget));
+    }
+
+    @Test
+    public void shouldMatchFokBidOrderExactBudget() {
+
+        long size = 180L;
+        long buyBudget = expectedState.aggregateBuyBudget(size);
+        assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L * 5L));
+
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
+
+        L2MarketData expected = expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 5L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new TradeEvent(2L, UID_1, 81599L, buyBudget, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, buyBudget, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, buyBudget, 100L, true),
+                new TradeEvent(10L, UID_1, 200954L, buyBudget, 5L, false));
+
+    }
+
+    @Test
+    public void shouldMatchFokBidOrderExtraBudget() {
+
+        long size = 176L;
+        long buyBudget = expectedState.aggregateBuyBudget(size) + 1;
+        assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L + 1L));
+
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
+
+        L2MarketData expected = expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 9L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new TradeEvent(2L, UID_1, 81599L, buyBudget, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, buyBudget, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, buyBudget, 100L, true),
+                new TradeEvent(10L, UID_1, 200954L, buyBudget, 1L, false));
+    }
+
+
+    @Test
+    public void shouldRejectFokAskOrderBelowExpectation() {
+
+        long size = 60L;
+        long sellExpectation = expectedState.aggregateSellExpectation(size) + 1;
+        assertThat(sellExpectation, is(81593L * 40L + 81590L * 20L + 1));
+
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
+
+        L2MarketData expected = expectedState.build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        // no trades generated, rejection with full size unmatched
+        verifyTradeEvents(
+                res, UID_2, 123L, ASK, true,
+                new ReduceEvent(size, sellExpectation, 0L));
+    }
+
+    @Test
+    public void shouldMatchFokAskOrderExactExpectation() {
+
+        long size = 60L;
+        long sellExpectation = expectedState.aggregateSellExpectation(size);
+        assertThat(sellExpectation, is(81593L * 40L + 81590L * 20L));
+
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
+
+        L2MarketData expected = expectedState.removeBid(0).setBidVolume(0, 1).decrementBidOrdersNum(0).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, ASK, true,
+                new TradeEvent(4L, UID_1, 81593L, 82001L, 40L, true),
+                new TradeEvent(5L, UID_1, 81590L, 82004L, 20L, true));
+    }
+
+    @Test
+    public void shouldMatchFokAskOrderExtraBudget() {
+
+        long size = 61L;
+        long sellExpectation = expectedState.aggregateSellExpectation(size) - 1;
+        assertThat(sellExpectation, is(81593L * 40L + 81590L * 21L - 1));
+
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
+
+        L2MarketData expected = expectedState.removeBid(0).removeBid(0).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, ASK, true,
+                new TradeEvent(4L, UID_1, 81593L, 82001L, 40L, true),
+                new TradeEvent(5L, UID_1, 81590L, 82004L, 20L, true),
+                new TradeEvent(6L, UID_1, 81590L, 82020L, 1L, true));
+    }
+
+
+    // MARKETABLE GTC ORDERS
+
+    @Test
+    public void shouldFullyMatchMarketableGtcOrder() {
+
+        // size=1
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81599L, MAX_PRICE, 1L, BID);
+
+
+        // best ask partially matched
+        L2MarketData expected = expectedState.setAskVolume(0, 74L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 1L, false));
+    }
+
+    @Test
+    public void shouldPartiallyMatchMarketableGtcOrderAndPlace() {
+
+        // size=77
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81599L, MAX_PRICE, 77L, BID);
+
+        // best asks fully matched, limit bid order placed
+        L2MarketData expected = expectedState.removeAsk(0).insertBid(0, 81599L, 2L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, false,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, MAX_PRICE, 25L, true));
     }
 
     //
-//    @Test
-//    public void shouldMatchIocOrderFullBBO() {
-//
-//        // size=40
-//        OrderCommand cmd = CommandsEncoder.placeOrder(IOC, 123, UID_2, 1, 0, 40, ASK);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // best bid matched
-//        L2MarketData expected = expectedState.removeBid(0).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(1));
-//        checkEventTrade(events.get(0), 4L, 81593, 40L);
-//    }
-//
-//    @Test
-//    public void shouldMatchIocOrderWithTwoLimitOrdersPartial() {
-//
-//        // size=41
-//        OrderCommand cmd = CommandsEncoder.placeOrder(IOC, 123, UID_2, 1, 0, 41, ASK);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // bids matched
-//        L2MarketData expected = expectedState.removeBid(0).setBidVolume(0, 20).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(2));
-//        checkEventTrade(events.get(0), 4L, 81593, 40L);
-//        checkEventTrade(events.get(1), 5L, 81590, 1L);
-//
-//        // check orders are removed from map
-//        assertNull(orderBook.getOrderById(4L));
-//        assertNotNull(orderBook.getOrderById(5L));
-//    }
-//
-//
-//    @Test
-//    public void shouldMatchIocOrderFullLiquidity() {
-//
-//        // size=175
-//        OrderCommand cmd = CommandsEncoder.placeOrder(IOC, 123, UID_2, MAX_PRICE, MAX_PRICE, 175, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // all asks matched
-//        L2MarketData expected = expectedState.removeAsk(0).removeAsk(0).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(3));
-//        checkEventTrade(events.get(0), 2L, 81599L, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599L, 25L);
-//        checkEventTrade(events.get(2), 1L, 81600L, 100L);
-//
-//        // check orders are removed from map
-//        assertNull(orderBook.getOrderById(1L));
-//        assertNull(orderBook.getOrderById(2L));
-//        assertNull(orderBook.getOrderById(3L));
-//    }
-//
-//    @Test
-//    public void shouldMatchIocOrderWithRejection() {
-//
-//        // size=270
-//        OrderCommand cmd = CommandsEncoder.placeOrder(IOC, 123, UID_2, MAX_PRICE, MAX_PRICE + 1, 270, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // all asks matched
-//        L2MarketData expected = expectedState.removeAllAsks().build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(7));
-//
-//        // 6 trades generated, first comes rejection with size=25 left unmatched
-//        checkEventRejection(events.get(0), 25L, 400000L, MAX_PRICE + 1);
-//    }
-//
-//    // ---------------------- FOK BUDGET ORDERS ---------------------------
-//
-//    @Test
-//    public void shouldRejectFokBidOrderOutOfBudget() {
-//
-//        long size = 180L;
-//        long buyBudget = expectedState.aggregateBuyBudget(size) - 1;
-//        assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L * 5L - 1));
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        assertEquals(expectedState.build(), snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(1));
-//
-//        // no trades generated, rejection with full size unmatched
-//        checkEventRejection(events.get(0), size, buyBudget, buyBudget);
-//    }
-//
-//    @Test
-//    public void shouldMatchFokBidOrderExactBudget() {
-//
-//        long size = 180L;
-//        long buyBudget = expectedState.aggregateBuyBudget(size);
-//        assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L * 5L));
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        assertEquals(expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 5).build(), snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(4));
-//        checkEventTrade(events.get(0), 2L, 81599, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599, 25L);
-//        checkEventTrade(events.get(2), 1L, 81600L, 100L);
-//        checkEventTrade(events.get(3), 10L, 200954L, 5L);
-//    }
-//
-//    @Test
-//    public void shouldMatchFokBidOrderExtraBudget() {
-//
-//        long size = 176L;
-//        long buyBudget = expectedState.aggregateBuyBudget(size) + 1;
-//        assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L + 1L));
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        assertEquals(expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 9).build(), snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(4));
-//        checkEventTrade(events.get(0), 2L, 81599, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599, 25L);
-//        checkEventTrade(events.get(2), 1L, 81600L, 100L);
-//        checkEventTrade(events.get(3), 10L, 200954L, 1L);
-//    }
-//
-//    @Test
-//    public void shouldRejectFokAskOrderBelowExpectation() {
-//
-//        long size = 60L;
-//        long sellExpectation = expectedState.aggregateSellExpectation(size) + 1;
-//        assertThat(sellExpectation, is(81593L * 40L + 81590L * 20L + 1));
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(FOK_BUDGET, 123L, UID_2, sellExpectation, sellExpectation, size, ASK);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        assertEquals(expectedState.build(), snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(1));
-//        // no trades generated, rejection with full size unmatched
-//        checkEventRejection(events.get(0), size, sellExpectation, sellExpectation);
-//    }
-//
-//    @Test
-//    public void shouldMatchFokAskOrderExactExpectation() {
-//
-//        long size = 60L;
-//        long sellExpectation = expectedState.aggregateSellExpectation(size);
-//        assertThat(sellExpectation, is(81593L * 40L + 81590L * 20L));
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(FOK_BUDGET, 123L, UID_2, sellExpectation, sellExpectation, size, ASK);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        assertEquals(expectedState.removeBid(0).setBidVolume(0, 1).decrementBidOrdersNum(0).build(), snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(2));
-//        checkEventTrade(events.get(0), 4L, 81593L, 40L);
-//        checkEventTrade(events.get(1), 5L, 81590L, 20L);
-//    }
-//
-//    @Test
-//    public void shouldMatchFokAskOrderExtraBudget() {
-//
-//        long size = 61L;
-//        long sellExpectation = expectedState.aggregateSellExpectation(size) - 1;
-//        assertThat(sellExpectation, is(81593L * 40L + 81590L * 21L - 1));
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(FOK_BUDGET, 123L, UID_2, sellExpectation, sellExpectation, size, ASK);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        assertEquals(expectedState.removeBid(0).removeBid(0).build(), snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(3));
-//        checkEventTrade(events.get(0), 4L, 81593L, 40L);
-//        checkEventTrade(events.get(1), 5L, 81590L, 20L);
-//        checkEventTrade(events.get(2), 6L, 81590L, 1L);
-//    }
-//
-//
-//    // MARKETABLE GTC ORDERS
-//
-//    @Test
-//    public void shouldFullyMatchMarketableGtcOrder() {
-//
-//        // size=1
-//        OrderCommand cmd = CommandsEncoder.placeOrder(ORDER_TYPE_GTC, 123, UID_2, 81599, MAX_PRICE, 1, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // best ask partially matched
-//        L2MarketData expected = expectedState.setAskVolume(0, 74).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(1));
-//        checkEventTrade(events.get(0), 2L, 81599, 1L);
-//    }
-//
-//
-//    @Test
-//    public void shouldPartiallyMatchMarketableGtcOrderAndPlace() {
-//
-//        // size=77
-//        OrderCommand cmd = CommandsEncoder.placeOrder(ORDER_TYPE_GTC, 123, UID_2, 81599, MAX_PRICE, 77, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // best asks fully matched, limit bid order placed
-//        L2MarketData expected = expectedState.removeAsk(0).insertBid(0, 81599, 2).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(2));
-//
-//        checkEventTrade(events.get(0), 2L, 81599, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599, 25L);
-//    }
-//
-//    @Test
-//    public void shouldFullyMatchMarketableGtcOrder2Prices() {
-//
-//        // size=77
-//        OrderCommand cmd = CommandsEncoder.placeOrder(ORDER_TYPE_GTC, 123, UID_2, 81600, MAX_PRICE, 77, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // best asks fully matched, limit bid order placed
-//        L2MarketData expected = expectedState.removeAsk(0).setAskVolume(0, 98).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(3));
-//
-//        checkEventTrade(events.get(0), 2L, 81599, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599, 25L);
-//        checkEventTrade(events.get(2), 1L, 81600, 2L);
-//    }
-//
-//
-//    @Test
-//    public void shouldFullyMatchMarketableGtcOrderWithAllLiquidity() {
-//
-//        // size=1000
-//        OrderCommand cmd = CommandsEncoder.placeOrder(ORDER_TYPE_GTC, 123, UID_2, 220000, MAX_PRICE, 1000, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//        // best asks fully matched, limit bid order placed
-//        L2MarketData expected = expectedState.removeAllAsks().insertBid(0, 220000, 755).build();
-//        assertEquals(expected, snapshot);
-//
-//        // trades only, rejection not generated for limit order
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(6));
-//
-//        checkEventTrade(events.get(0), 2L, 81599, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599, 25L);
-//        checkEventTrade(events.get(2), 1L, 81600, 100L);
-//        checkEventTrade(events.get(3), 10L, 200954, 10L);
-//        checkEventTrade(events.get(4), 8L, 201000, 28L);
-//        checkEventTrade(events.get(5), 9L, 201000, 32L);
-//    }
-//
-//
-//    // Move GTC order to marketable price
-//    // TODO add into far area
-//    @Test
-//    public void shouldMoveOrderFullyMatchAsMarketable() {
-//
-//        // add new order and check it is there
-//        OrderCommand cmd = CommandsEncoder.placeOrder(ORDER_TYPE_GTC, 83, UID_2, 81200, MAX_PRICE, 20, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(0));
-//
-//        L2MarketData expected = expectedState.setBidVolume(2, 40).incrementBidOrdersNum(2).build();
-//        assertEquals(expected, orderBook.getL2MarketDataSnapshot(10));
-//
-//        // move to marketable price area
-//        cmd = OrderCommand.update(83, UID_2, 81602);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        // moved
-//        expected = expectedState.setBidVolume(2, 20).decrementBidOrdersNum(2).setAskVolume(0, 55).build();
-//        assertEquals(expected, orderBook.getL2MarketDataSnapshot(10));
-//
-//        events = cmd.extractEvents();
-//        assertThat(events.size(), is(1));
-//        checkEventTrade(events.get(0), 2L, 81599, 20L);
-//    }
-//
-//
+    @Test
+    public void shouldFullyMatchMarketableGtcOrder2Prices() {
+
+        // size=77
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81600L, MAX_PRICE, 77L, BID);
+
+        // best asks fully matched, limit bid order placed
+        L2MarketData expected = expectedState.removeAsk(0).setAskVolume(0, 98L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, MAX_PRICE, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, MAX_PRICE, 2L, false));
+    }
+
+
+    @Test
+    public void shouldFullyMatchMarketableGtcOrderWithAllLiquidity() {
+
+        // size=1000
+        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 220000L, MAX_PRICE + 1, 1000L, BID);
+
+        // best asks fully matched, limit bid order placed
+        L2MarketData expected = expectedState.removeAllAsks().insertBid(0, 220000L, 755L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        // trades only, rejection not generated for limit order
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, false,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE + 1, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, MAX_PRICE + 1, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, MAX_PRICE + 1, 100L, true),
+                new TradeEvent(10L, UID_1, 200954L, MAX_PRICE + 1, 10L, true),
+                new TradeEvent(8L, UID_1, 201000L, MAX_PRICE + 1, 28L, true),
+                new TradeEvent(9L, UID_1, 201000L, MAX_PRICE + 1, 32L, true));
+    }
+
+    // Move GTC order to marketable price
+    @Test
+    public void shouldMoveOrderFullyMatchAsMarketable() {
+
+        // add new order and check it is there
+        CommandProcessingResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81200L, MAX_PRICE, 20L, BID);
+        verifyNoEvents(resPlace);
+
+        L2MarketData expected = expectedState.setBidVolume(2, 40L).incrementBidOrdersNum(2).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        // move to marketable price area
+        CommandProcessingResponse resMove = move(83L, UID_2, 81602L);
+
+        // moved
+        expected = expectedState.setBidVolume(2, 20L).decrementBidOrdersNum(2).setAskVolume(0, 55L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+
+        verifyTradeEvents(
+                resMove, UID_2, 83L, BID, true,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 20L, false));
+    }
+
+
 //    @Test
 //    public void shouldMoveOrderFullyMatchAsMarketable2Prices() {
 //
@@ -952,12 +934,22 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         assertThat(reduceEvent.getReducedVolume(), is(reducedVolume));
     }
 
+    private void verifyTradeEvents(final CommandProcessingResponse res,
+                                   final long uid,
+                                   final long orderId,
+                                   final OrderAction action,
+                                   final boolean takerOrderCompleted,
+                                   final TradeEvent... tradeEvents) {
+
+        verifyTradeEvents(res, uid, orderId, action, takerOrderCompleted, null, tradeEvents);
+    }
 
     private void verifyTradeEvents(final CommandProcessingResponse res,
                                    final long uid,
                                    final long orderId,
                                    final OrderAction action,
                                    final boolean takerOrderCompleted,
+                                   final ReduceEvent reduceEvent,
                                    final TradeEvent... tradeEvents) {
 
         Optional<TradeEventsBlock> tradeEventsBlockOpt = res.getTradeEventsBlock();
@@ -973,37 +965,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         assertThat(tradeEventsBlock.getTrades(), is(tradeEvents));
 
         Optional<ReduceEvent> reduceEventOpt = tradeEventsBlock.getReduceEvent();
-        assertFalse(reduceEventOpt.isPresent());
+        assertThat(reduceEventOpt, is(Optional.ofNullable(reduceEvent)));
     }
-
-
-//    public void checkEventTrade(MatcherTradeEvent event, long matchedId, long price, long size) {
-//        assertThat(event.eventType, is(MatcherEventType.TRADE));
-//        assertThat(event.matchedOrderId, is(matchedId));
-//        assertThat(event.price, is(price));
-//        assertThat(event.size, is(size));
-//        // TODO add more checks for MatcherTradeEvent
-//    }
-//
-//    public void checkEventRejection(MatcherTradeEvent event, long size, long price, Long bidderHoldPrice) {
-//        assertThat(event.eventType, is(MatcherEventType.REJECT));
-//        assertThat(event.size, is(size));
-//        assertThat(event.price, is(price));
-//        assertTrue(event.activeOrderCompleted);
-//        if (bidderHoldPrice != null) {
-//            assertThat(event.bidderHoldPrice, is(bidderHoldPrice));
-//        }
-//    }
-//
-//    public void checkEventReduce(MatcherTradeEvent event, long reduceSize, long price, boolean completed, Long bidderHoldPrice) {
-//        assertThat(event.eventType, is(MatcherEventType.REDUCE));
-//        assertThat(event.size, is(reduceSize));
-//        assertThat(event.price, is(price));
-//        assertThat(event.activeOrderCompleted, is(completed));
-//        assertNull(event.nextEvent);
-//        if (bidderHoldPrice != null) {
-//            assertThat(event.bidderHoldPrice, is(bidderHoldPrice));
-//        }
-//    }
 
 }

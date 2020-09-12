@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Maksim Zheravin
+ * Copyright 2020 Maksim Zheravin
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * <p>
      * Rejection chain attached in case of error (to simplify risk handling)
      * <p>
-     * |---byte orderCommandType---|---long uid---|---long orderId---|---long price---|
-     * |---long size---|---byte orderAction---|---byte orderType---|---int productCode---|
      */
     void newOrder(DirectBuffer buffer, int offset);
 
@@ -45,7 +43,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * <p>
      * fills cmd.action  with original original order action
      * <p>
-     * |---byte orderCommandType---|---long uid---|---long orderId---|---int productCode---|
      */
     void cancelOrder(DirectBuffer buffer, int offset);
 
@@ -54,8 +51,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * <p>
      * fills cmd.action  with original  order action
      * <p>
-     * |---byte orderCommandType---|---long uid---|---long orderId---|---long reduceSize---|
-     * |---int productCode---|
      */
     void reduceOrder(DirectBuffer buffer, int offset);
 
@@ -65,8 +60,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * newPrice - new price (if 0 or same - order will not moved)
      * fills cmd.action  with original original order action
      * <p>
-     * |---byte orderCommandType---|---long uid---|---long orderId---|---long newPrice---|
-     * |---int productCode---|
      */
     void moveOrder(DirectBuffer buffer, int offset);
 

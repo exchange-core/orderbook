@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Maksim Zheravin
+ * Copyright 2020 Maksim Zheravin
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -605,11 +605,9 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         // size=1
         CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81599L, MAX_PRICE, 1L, BID);
 
-
         // best ask partially matched
         L2MarketData expected = expectedState.setAskVolume(0, 74L).build();
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
-
 
         verifyTradeEvents(
                 res, UID_2, 123L, BID, true,
@@ -690,67 +688,56 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         expected = expectedState.setBidVolume(2, 20L).decrementBidOrdersNum(2).setAskVolume(0, 55L).build();
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
 
-
         verifyTradeEvents(
                 resMove, UID_2, 83L, BID, true,
                 new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 20L, false));
     }
 
 
-//    @Test
-//    public void shouldMoveOrderFullyMatchAsMarketable2Prices() {
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(ORDER_TYPE_GTC, 83, UID_2, 81594, MAX_PRICE, 100, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(0));
-//
-//        // move to marketable zone
-//        cmd = OrderCommand.update(83, UID_2, 81600);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//
-//        // moved
-//        L2MarketData expected = expectedState.removeAsk(0).setAskVolume(0, 75).build();
-//        assertEquals(expected, snapshot);
-//
-//        events = cmd.extractEvents();
-//        assertThat(events.size(), is(3));
-//        checkEventTrade(events.get(0), 2L, 81599, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599, 25L);
-//        checkEventTrade(events.get(2), 1L, 81600, 25L);
-//
-//    }
-//
-//    @Test
-//    public void shouldMoveOrderMatchesAllLiquidity() {
-//
-//        OrderCommand cmd = CommandsEncoder.placeOrder(ORDER_TYPE_GTC, 83, UID_2, 81594, MAX_PRICE, 246, BID);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        // move to marketable zone
-//        cmd = OrderCommand.update(83, UID_2, 201000);
-//        processAndValidate(cmd, RESULT_SUCCESS);
-//
-//        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(10);
-//
-//        // moved
-//        L2MarketData expected = expectedState.removeAllAsks().insertBid(0, 201000, 1).build();
-//        assertEquals(expected, snapshot);
-//
-//        List<MatcherTradeEvent> events = cmd.extractEvents();
-//        assertThat(events.size(), is(6));
-//        checkEventTrade(events.get(0), 2L, 81599, 50L);
-//        checkEventTrade(events.get(1), 3L, 81599, 25L);
-//        checkEventTrade(events.get(2), 1L, 81600, 100L);
-//        checkEventTrade(events.get(3), 10L, 200954, 10L);
-//        checkEventTrade(events.get(4), 8L, 201000, 28L);
-//        checkEventTrade(events.get(5), 9L, 201000, 32L);
-//    }
-//
-//
+    @Test
+    public void shouldMoveOrderFullyMatchAsMarketable2Prices() {
+
+        CommandProcessingResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81594L, MAX_PRICE, 100L, BID);
+        verifyNoEvents(resPlace);
+
+        // move to marketable zone
+        CommandProcessingResponse resMove = move(83L, UID_2, 81600L);
+
+        // moved
+        L2MarketData expected = expectedState.removeAsk(0).setAskVolume(0, 75L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                resMove, UID_2, 83L, BID, true,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, MAX_PRICE, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, MAX_PRICE, 25L, false));
+    }
+
+
+    @Test
+    public void shouldMoveOrderMatchesAllLiquidity() {
+
+        CommandProcessingResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81594L, MAX_PRICE, 246L, BID);
+        verifyNoEvents(resPlace);
+
+        // move to marketable zone
+        CommandProcessingResponse resMove = move(83L, UID_2, 201000L);
+
+        // moved
+        L2MarketData expected = expectedState.removeAllAsks().insertBid(0, 201000L, 1L).build();
+        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+
+        verifyTradeEvents(
+                resMove, UID_2, 83L, BID, false,
+                new TradeEvent(2L, UID_1, 81599L, MAX_PRICE, 50L, true),
+                new TradeEvent(3L, UID_1, 81599L, MAX_PRICE, 25L, true),
+                new TradeEvent(1L, UID_1, 81600L, MAX_PRICE, 100L, true),
+                new TradeEvent(10L, UID_1, 200954L, MAX_PRICE, 10L, true),
+                new TradeEvent(8L, UID_1, 201000L, MAX_PRICE, 28L, true),
+                new TradeEvent(9L, UID_1, 201000L, MAX_PRICE, 32L, true));
+    }
+
 //    @Test
 //    public void multipleCommandsKeepInternalStateTest() {
 //
@@ -779,7 +766,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 //        });
 //
 //    }
-//
+
     // ------------------------------- UTILITY METHODS --------------------------
     protected CommandProcessingResponse placeOrder(final byte type,
                                                    final long orderId,

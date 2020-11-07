@@ -93,4 +93,21 @@ public final class OrderBookEventsHelper {
 
 //        log.debug("BUF after fillEventsHeader: \n{}", PrintBufferUtil.hexDump(resultsBuffer, 0, 128));
     }
+
+    public void addL2Header(final int asks, final int bids) {
+        resultsBuffer.putInt(RESPONSE_OFFSET_L2_BLK_ASK_RECORDS, asks);
+        resultsBuffer.putInt(RESPONSE_OFFSET_L2_BLK_BID_RECORDS, bids);
+    }
+
+    public void addL2Record(final int position,
+                            final long price,
+                            final long volume,
+                            final int numOrders) {
+
+        final int offset = getL2RecordOffset(position);
+
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_L2_RECORD_PRICE, price);
+        resultsBuffer.putLong(offset + RESPONSE_OFFSET_L2_RECORD_VOLUME, volume);
+        resultsBuffer.putInt(offset + RESPONSE_OFFSET_L2_RECORD_NUM, numOrders);
+    }
 }

@@ -68,17 +68,12 @@
 
     <dependencies>
 
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
         <!-- Real Logic Agrona -->
         <dependency>
             <groupId>org.agrona</groupId>
             <artifactId>agrona</artifactId>
-            <version>1.7.1</version>
+            <version>1.8.0</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Eclipse (Goldman Sachs) collections -->
@@ -86,11 +81,13 @@
             <groupId>org.eclipse.collections</groupId>
             <artifactId>eclipse-collections-api</artifactId>
             <version>10.4.0</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.eclipse.collections</groupId>
             <artifactId>eclipse-collections</artifactId>
             <version>10.4.0</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- logging -->

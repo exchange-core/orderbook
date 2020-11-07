@@ -63,6 +63,10 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      */
     void moveOrder(DirectBuffer buffer, int offset);
 
+
+    void sendL2Snapshot(DirectBuffer buffer, int offset);
+
+
     // testing only ?
     int getOrdersNum(OrderAction action);
 
@@ -236,8 +240,23 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     int RESPONSE_OFFSET_REVT_REDUCED_VOL = RESPONSE_OFFSET_REVT_RESERV_BID_PRICE + BitUtil.SIZE_OF_LONG;
     int RESPONSE_OFFSET_REVT_END = RESPONSE_OFFSET_REVT_REDUCED_VOL + BitUtil.SIZE_OF_BYTE;
 
-    static int getTradeEventOffset(int tradeEventsNum) {
+    // L2 data header // TODO add symbolId and time ()
+    int RESPONSE_OFFSET_L2_BLK_ASK_RECORDS = 0;
+    int RESPONSE_OFFSET_L2_BLK_BID_RECORDS = RESPONSE_OFFSET_L2_BLK_ASK_RECORDS + BitUtil.SIZE_OF_INT;
+    int RESPONSE_OFFSET_L2_BLK_END = RESPONSE_OFFSET_L2_BLK_BID_RECORDS + BitUtil.SIZE_OF_INT;
+    // L2 data record
+    int RESPONSE_OFFSET_L2_RECORD_PRICE = 0;
+    int RESPONSE_OFFSET_L2_RECORD_VOLUME = RESPONSE_OFFSET_L2_RECORD_PRICE + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_L2_RECORD_NUM = RESPONSE_OFFSET_L2_RECORD_VOLUME + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_L2_RECORD_END = RESPONSE_OFFSET_L2_RECORD_NUM + BitUtil.SIZE_OF_INT;
+
+
+    static int getTradeEventOffset(final int tradeEventsNum) {
         return RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_TEVT_END * tradeEventsNum;
+    }
+
+    static int getL2RecordOffset(final int position) {
+        return RESPONSE_OFFSET_L2_BLK_END + RESPONSE_OFFSET_L2_RECORD_END * position;
     }
 
 

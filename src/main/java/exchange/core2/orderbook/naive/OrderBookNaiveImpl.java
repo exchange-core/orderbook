@@ -61,6 +61,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         final byte orderType = buffer.getByte(offset + PLACE_OFFSET_TYPE);
 
+        if (logDebug) log.debug("orderType: {}", orderType);
+
         initResponse(IOrderBook.RESULT_SUCCESS);
 
         switch (orderType) {
@@ -87,7 +89,10 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long size = buffer.getLong(offset + PLACE_OFFSET_SIZE);
         final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
 
+        if (logDebug) log.debug("action={} price={} size={} reserveBidPrice={}", action, price, size, reserveBidPrice);
+
         if (size <= 0) {
+            if (logDebug) log.debug("RESULT_INCORRECT_ORDER_SIZE");
             updateResponse(IOrderBook.RESULT_INCORRECT_ORDER_SIZE);
             return;
         }
@@ -99,6 +104,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long newOrderId = buffer.getLong(offset + PLACE_OFFSET_ORDER_ID);
         final long uid = buffer.getLong(offset + PLACE_OFFSET_UID);
 
+        if (logDebug) log.debug("newOrderId={} uid={}", newOrderId, uid);
+
         final boolean completed = (filledSize == size);
 
         if (filledSize != 0) {
@@ -107,6 +114,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         }
 
         if (completed) {
+            if (logDebug) log.debug("completed");
             // order was matched completely - nothing to place - can just return
             return;
         }
@@ -138,6 +146,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 .put(orderRecord);
 
         idMap.put(newOrderId, orderRecord);
+
+        if (logDebug) log.debug("placed maker order: {}", orderRecord);
     }
 
     private void newOrderMatchIoc(final DirectBuffer buffer, final int offset) {
@@ -146,6 +156,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long size = buffer.getLong(offset + PLACE_OFFSET_SIZE);
         final OrderAction action = OrderAction.of(buffer.getByte(offset + PLACE_OFFSET_ACTION));
         final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
+
+        if (logDebug) log.debug("action={} price={} size={} reserveBidPrice={}", action, price, size, reserveBidPrice);
 
         if (size <= 0) {
             updateResponse(IOrderBook.RESULT_INCORRECT_ORDER_SIZE);
@@ -158,6 +170,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         final long rejectedSize = size - filledSize;
 
+        if (logDebug) log.debug("rejected size: {}", rejectedSize);
         if (rejectedSize != 0) {
             // was not matched completely - send reject for not-completed IoC order
             eventsHelper.appendRejectEvent(price, reserveBidPrice, rejectedSize);
@@ -252,7 +265,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             final SortedMap<Long, OrdersBucketNaive> matchingBuckets,
             long filled) {
 
-//        log.info("matchInstantly: takerSize={} filled={} {}", takerSize, filled, matchingBuckets);
+        if (logDebug) log.debug("matchInstantly: takerSize={} filled={}", takerSize, filled);
 
         if (matchingBuckets.size() == 0) {
             return filled;
@@ -264,6 +277,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
             final OrdersBucketNaive bucket = iterator.next();
             final long sizeLeft = takerSize - filled;
+
+            if (logDebug) log.debug("trying to match sizeLeft={} at price {}", sizeLeft, bucket.getPrice());
 
             filled += bucket.match(
                     sizeLeft,
@@ -461,6 +476,30 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         return action == OrderAction.ASK ? askBuckets : bidBuckets;
     }
 
+    @Override
+    public void sendL2Snapshot(final DirectBuffer buffer, int offset) {
+        final short sizeOffer = buffer.getShort(offset);
+        final int maxSize = sizeOffer > 0 ? sizeOffer : Integer.MAX_VALUE;
+
+        int asks = 0;
+        for (final OrdersBucketNaive bucket : askBuckets.values()) {
+            eventsHelper.addL2Record(asks, bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
+
+            if (++asks == maxSize) {
+                break;
+            }
+        }
+
+        int bids = 0;
+        for (final OrdersBucketNaive bucket : bidBuckets.values()) {
+            eventsHelper.addL2Record(asks + bids, bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
+            if (++bids == maxSize) {
+                break;
+            }
+        }
+
+        eventsHelper.addL2Header(asks, bids);
+    }
 
     /**
      * Get order from internal map

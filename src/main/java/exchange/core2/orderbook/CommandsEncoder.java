@@ -32,16 +32,27 @@ public final class CommandsEncoder {
                                                  final OrderAction action) {
 
         final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(64);
-
-        buf.putLong(PLACE_OFFSET_UID, uid);
-        buf.putLong(PLACE_OFFSET_ORDER_ID, orderId);
-        buf.putLong(PLACE_OFFSET_PRICE, price);
-        buf.putLong(PLACE_OFFSET_RESERVED_BID_PRICE, reservedBidPrice);
-        buf.putLong(PLACE_OFFSET_SIZE, size);
-        buf.putLong(PLACE_OFFSET_ACTION, action.getCode());
-        buf.putLong(PLACE_OFFSET_TYPE, type);
-
+        placeOrder(buf, 0, type, orderId, uid, price, reservedBidPrice, size, action);
         return buf;
+    }
+
+    public static void placeOrder(final MutableDirectBuffer buf,
+                                  final int offset,
+                                  final byte type,
+                                  final long orderId,
+                                  final long uid,
+                                  final long price,
+                                  final long reservedBidPrice,
+                                  final long size,
+                                  final OrderAction action) {
+
+        buf.putLong(offset + PLACE_OFFSET_UID, uid);
+        buf.putLong(offset + PLACE_OFFSET_ORDER_ID, orderId);
+        buf.putLong(offset + PLACE_OFFSET_PRICE, price);
+        buf.putLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE, reservedBidPrice);
+        buf.putLong(offset + PLACE_OFFSET_SIZE, size);
+        buf.putLong(offset + PLACE_OFFSET_ACTION, action.getCode());
+        buf.putLong(offset + PLACE_OFFSET_TYPE, type);
     }
 
 
@@ -49,11 +60,17 @@ public final class CommandsEncoder {
                                              final long uid) {
 
         final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(16);
-
-        buf.putLong(PLACE_OFFSET_UID, uid);
-        buf.putLong(PLACE_OFFSET_ORDER_ID, orderId);
-
+        cancel(buf, 0, orderId, uid);
         return buf;
+    }
+
+    public static void cancel(final MutableDirectBuffer buf,
+                              final int offset,
+                              final long orderId,
+                              final long uid) {
+
+        buf.putLong(offset + PLACE_OFFSET_UID, uid);
+        buf.putLong(offset + PLACE_OFFSET_ORDER_ID, orderId);
     }
 
     public static MutableDirectBuffer reduce(final long orderId,
@@ -61,12 +78,19 @@ public final class CommandsEncoder {
                                              final long size) {
 
         final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(24);
-
-        buf.putLong(REDUCE_OFFSET_UID, uid);
-        buf.putLong(REDUCE_OFFSET_ORDER_ID, orderId);
-        buf.putLong(REDUCE_OFFSET_SIZE, size);
-
+        reduce(buf, 0, orderId, uid, size);
         return buf;
+    }
+
+    public static void reduce(final MutableDirectBuffer buf,
+                              final int offset,
+                              final long orderId,
+                              final long uid,
+                              final long size) {
+
+        buf.putLong(offset + REDUCE_OFFSET_UID, uid);
+        buf.putLong(offset + REDUCE_OFFSET_ORDER_ID, orderId);
+        buf.putLong(offset + REDUCE_OFFSET_SIZE, size);
     }
 
     public static MutableDirectBuffer move(final long orderId,
@@ -74,12 +98,19 @@ public final class CommandsEncoder {
                                            final long price) {
 
         final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(24);
-
-        buf.putLong(MOVE_OFFSET_UID, uid);
-        buf.putLong(MOVE_OFFSET_ORDER_ID, orderId);
-        buf.putLong(MOVE_OFFSET_PRICE, price);
-
+        move(buf, 0, orderId, uid, price);
         return buf;
+    }
+
+    public static void move(final MutableDirectBuffer buf,
+                            final int offset,
+                            final long orderId,
+                            final long uid,
+                            final long price) {
+
+        buf.putLong(offset + MOVE_OFFSET_UID, uid);
+        buf.putLong(offset + MOVE_OFFSET_ORDER_ID, orderId);
+        buf.putLong(offset + MOVE_OFFSET_PRICE, price);
     }
 
 }

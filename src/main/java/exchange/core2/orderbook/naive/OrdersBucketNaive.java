@@ -109,15 +109,15 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
             totalVolume -= v;
 
             // remove from order book filled orders
-            final boolean fullMatch = order.size == order.filled;
+            final boolean makerOrderCompleted = order.size == order.filled;
 
-            eventsHelper.sendTradeEvent(
+            eventsHelper.appendTradeEvent(
                     order,
-                    fullMatch,
+                    makerOrderCompleted,
                     v,
                     order.action == OrderAction.ASK ? activeReservedBidPrice : order.reserveBidPrice);
 
-            if (fullMatch) {
+            if (makerOrderCompleted) {
                 orderRemover.accept(order.orderId);
                 iterator.remove();
             }

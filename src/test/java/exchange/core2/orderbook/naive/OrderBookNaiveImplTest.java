@@ -18,7 +18,7 @@ package exchange.core2.orderbook.naive;
 
 import exchange.core2.orderbook.IOrderBook;
 import exchange.core2.orderbook.ISymbolSpecification;
-import org.agrona.MutableDirectBuffer;
+import exchange.core2.orderbook.util.BufferWriter;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -32,9 +32,9 @@ public class OrderBookNaiveImplTest extends OrderBookBaseTest {
     ISymbolSpecification spec;
 
     @Override
-    protected IOrderBook createNewOrderBook(final MutableDirectBuffer resultsBuffer) {
+    protected IOrderBook createNewOrderBook(final BufferWriter bufferWriter) {
 
-        return new OrderBookNaiveImpl<>(getCoreSymbolSpec(), true, resultsBuffer);
+        return new OrderBookNaiveImpl<>(getCoreSymbolSpec(), false, bufferWriter);
     }
 
     @Override

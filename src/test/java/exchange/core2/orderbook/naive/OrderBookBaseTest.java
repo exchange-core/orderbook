@@ -20,6 +20,7 @@ import exchange.core2.orderbook.events.CommandProcessingResponse;
 import exchange.core2.orderbook.events.ReduceEvent;
 import exchange.core2.orderbook.events.TradeEvent;
 import exchange.core2.orderbook.events.TradeEventsBlock;
+import exchange.core2.orderbook.util.BufferWriter;
 import exchange.core2.tests.util.L2MarketDataHelper;
 import org.agrona.ExpandableDirectByteBuffer;
 import org.agrona.MutableDirectBuffer;
@@ -66,7 +67,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
 //    protected CommandsEncoder commandsEncoder = new CommandsEncoder(commandsBuffer);
 
-    protected abstract IOrderBook<S> createNewOrderBook(MutableDirectBuffer resultsBuffer);
+    protected abstract IOrderBook<S> createNewOrderBook(BufferWriter bufferWriter);
 
 
     static final long INITIAL_PRICE = 81600L;
@@ -80,7 +81,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
     @Before
     public void before() {
-        orderBook = createNewOrderBook(responseBuffer);
+
+        BufferWriter bufferWriter = new BufferWriter(responseBuffer, 0);
+
+        orderBook = createNewOrderBook(bufferWriter);
         orderBook.verifyInternalState();
 
         placeOrder(ORDER_TYPE_GTC, -1L, UID_2, INITIAL_PRICE, 0L, 13L, ASK);

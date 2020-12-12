@@ -168,16 +168,27 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
 
 
     /*
-     * Error code
+     * Order book command codes
      */
+    byte COMMAND_PLACE_ORDER = 1;
+    byte COMMAND_CANCEL_ORDER = 2;
+    byte COMMAND_MOVE_ORDER = 3;
+    byte COMMAND_REDUCE_ORDER = 4;
+    byte QUERY_ORDER_BOOK = 5;
 
+    /*
+     * Error codes
+     */
     short RESULT_SUCCESS = 0;
+    short RESULT_UNKNOWN_ORDER_ID = 1;
+    short RESULT_UNSUPPORTED_COMMAND = 2;
+    short RESULT_INVALID_ORDER_BOOK_ID = 3;
+    short RESULT_INCORRECT_ORDER_SIZE = 4;
+    short RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = 5;
 
-    short RESULT_UNKNOWN_ORDER_ID = -3002;
-    short RESULT_UNSUPPORTED_COMMAND = -3004;
-    short RESULT_INVALID_ORDER_BOOK_ID = -3005;
-    short RESULT_INCORRECT_ORDER_SIZE = -3006;
-    short RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = -3041;
+    short RESULT_OFFSET_REDUCE_EVT_FLAG = 1 << 14;
+    short RESULT_OFFSET_TAKER_ACTION_BID_FLAG = 1 << 13;
+    short RESULT_OFFSET_TAKE_ORDER_COMPLETED_FLAG = 1 << 12;
 
     /*
      * Incoming message offsets
@@ -188,7 +199,8 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     int PLACE_OFFSET_PRICE = PLACE_OFFSET_ORDER_ID + BitUtil.SIZE_OF_LONG;
     int PLACE_OFFSET_RESERVED_BID_PRICE = PLACE_OFFSET_PRICE + BitUtil.SIZE_OF_LONG;
     int PLACE_OFFSET_SIZE = PLACE_OFFSET_RESERVED_BID_PRICE + BitUtil.SIZE_OF_LONG;
-    int PLACE_OFFSET_ACTION = PLACE_OFFSET_SIZE + BitUtil.SIZE_OF_LONG;
+    int PLACE_OFFSET_USER_COOKIE = PLACE_OFFSET_SIZE + BitUtil.SIZE_OF_LONG;
+    int PLACE_OFFSET_ACTION = PLACE_OFFSET_USER_COOKIE + BitUtil.SIZE_OF_INT;
     int PLACE_OFFSET_TYPE = PLACE_OFFSET_ACTION + BitUtil.SIZE_OF_BYTE;
     int PLACE_OFFSET_END = PLACE_OFFSET_TYPE + BitUtil.SIZE_OF_BYTE;
 

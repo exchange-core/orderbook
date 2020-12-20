@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static exchange.core2.orderbook.IOrderBook.*;
@@ -176,7 +177,6 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     }
 
 
-
     /**
      * Just place few GTC orders
      */
@@ -281,18 +281,18 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     }
 
     @Test
-    public void shouldIgnoreReducingByNegativeSize() {
+    public void shouldNotReduceByNegativeOrZero() {
 
         // zero
-        CommandResponse res = reduce(4, UID_1, 0L);
+        CommandResponse res = reduce(4, UID_1, 0L, RESULT_INCORRECT_REDUCE_SIZE);
         verifyNoEvents(res);
 
         // negative
-        res = reduce(8, UID_1, -1L);
+        res = reduce(8, UID_1, -1L, RESULT_INCORRECT_REDUCE_SIZE);
         verifyNoEvents(res);
 
         // big negative
-        res = reduce(8, UID_1, Long.MIN_VALUE);
+        res = reduce(8, UID_1, Long.MIN_VALUE, RESULT_INCORRECT_REDUCE_SIZE);
         verifyNoEvents(res);
 
         assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
@@ -790,25 +790,28 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
                                          final OrderAction action) {
 
         bufferWriter.reset();
-        orderBook.newOrder(CommandsEncoder.placeOrder(type, orderId, uid, price, reservedBidPrice, size, action), 0, 12345678L);
+        final int userCookie = Objects.hash(uid, orderId, price, size);
+        final MutableDirectBuffer buffer = CommandsEncoder.placeOrder(type, orderId, uid, price, reservedBidPrice, size, action, userCookie);
+        orderBook.newOrder(buffer, 0, 12345678L);
 
         final CommandResponsePlace response = (CommandResponsePlace) ResponseDecoder.readResult(responseBuffer, bufferWriter.getWriterPosition());
 
         assertThat(response.getResultCode(), is(RESULT_SUCCESS));
 
-        final List<TradeEvent> tradeEventsBlockOpt = response.getTrades();
-
-
         assertThat(response.getTakerAction(), is(action));
         assertThat(response.getOrderId(), is(orderId));
         assertThat(response.getUid(), is(uid));
-
+        assertThat(response.getUserCookie(), is(userCookie));
 
         final MutableLong totalVolumeInEvents = new MutableLong();
 
         final Optional<ReduceEvent> reduceEventOpt = response.getReduceEventOpt();
         final List<TradeEvent> trades = response.getTrades();
-        assertTrue(reduceEventOpt.isPresent() || trades.size() != 0);
+
+        if (type != ORDER_TYPE_GTC) {
+            // sending  IoC or FoK order triggers either reduce or/and trades
+            assertTrue(reduceEventOpt.isPresent() || trades.size() != 0);
+        }
 
         reduceEventOpt.ifPresent(reduceEvent -> {
             assertThat(reduceEvent.getPrice(), is(price));

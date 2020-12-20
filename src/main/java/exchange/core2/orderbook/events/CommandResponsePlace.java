@@ -23,7 +23,7 @@ import java.util.Optional;
 
 public final class CommandResponsePlace extends CommandResponse {
 
-    private final long userCookie;
+    private final int userCookie;
     private final Long remainingSize;
 
     public CommandResponsePlace(final short resultCode,
@@ -31,7 +31,7 @@ public final class CommandResponsePlace extends CommandResponse {
                                 final long orderId,
                                 final OrderAction takerAction,
                                 final boolean orderCompleted,
-                                final long userCookie,
+                                final int userCookie,
                                 final Long remainingSize,
                                 final List<TradeEvent> trades,
                                 final ReduceEvent reduceEvent) {
@@ -42,11 +42,13 @@ public final class CommandResponsePlace extends CommandResponse {
         this.remainingSize = remainingSize;
     }
 
-    public long getUserCookie() {
+    public int getUserCookie() {
         return userCookie;
     }
 
     public Optional<Long> getRemainingSizeOpt() {
         return Optional.ofNullable(remainingSize);
     }
+
+
 }

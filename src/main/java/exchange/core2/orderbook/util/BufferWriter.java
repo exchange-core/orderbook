@@ -91,8 +91,8 @@ public class BufferWriter {
         buffer.putLong(offset, w);
     }
 
-    public String hexDump() {
-        return PrintBufferUtil.hexDump(buffer, initialPosition, writerPosition);
+    public String prettyHexDump() {
+        return PrintBufferUtil.prettyHexDump(buffer, initialPosition, writerPosition);
     }
 
 }

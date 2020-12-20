@@ -18,6 +18,7 @@ package exchange.core2.orderbook.util;
 
 import org.agrona.BitUtil;
 import org.agrona.DirectBuffer;
+import org.agrona.PrintBufferUtil;
 
 public class BufferReader {
 
@@ -103,4 +104,7 @@ public class BufferReader {
         return w;
     }
 
+    public String prettyHexDump() {
+        return PrintBufferUtil.prettyHexDump(buffer, initialPosition, size);
+    }
 }

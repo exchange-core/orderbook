@@ -62,13 +62,11 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                          final long timestamp) {
 
         final byte orderType = buffer.getByte(offset + PLACE_OFFSET_TYPE);
-
-        if (logDebug) log.debug("orderType: {}", orderType);
-
         final long uid = buffer.getLong(offset + PLACE_OFFSET_UID);
         final long newOrderId = buffer.getLong(offset + PLACE_OFFSET_ORDER_ID);
         final int userCookie = buffer.getInt(offset + PLACE_OFFSET_USER_COOKIE);
         final OrderAction action = OrderAction.of(buffer.getByte(offset + PLACE_OFFSET_ACTION));
+        if (logDebug) log.debug("orderType={} userCookie={}", orderType, userCookie);
 
         resultsBuffer.appendByte(IOrderBook.COMMAND_PLACE_ORDER);
         resultsBuffer.appendLong(uid);
@@ -78,7 +76,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long size = buffer.getLong(offset + PLACE_OFFSET_SIZE);
         if (size <= 0) {
             if (logDebug) log.debug("RESULT_INCORRECT_ORDER_SIZE");
-            eventsHelper.fillResultCode(IOrderBook.RESULT_INCORRECT_ORDER_SIZE, true, action, false);
+            eventsHelper.appendResultCode(IOrderBook.RESULT_INCORRECT_ORDER_SIZE, true, action, false);
             return;
         }
 
@@ -121,20 +119,21 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final long price = buffer.getLong(offset + PLACE_OFFSET_PRICE);
         final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
 
-        if (logDebug) log.debug("action={} price={} size={} reserveBidPrice={}", action, price, size, reserveBidPrice);
+        if (logDebug) {
+            log.debug("action={} price={} size={} reserveBidPrice={} newOrderId={} uid={}", action, price, size, reserveBidPrice, newOrderId, uid);
+        }
 
         // check if order is marketable (if there are opposite matching orders)
         final SortedMap<Long, OrdersBucketNaive> subTree = subtreeForMatching(action, price);
         final long filledSize = tryMatchInstantly(size, reserveBidPrice, subTree, 0);
 
-        if (logDebug) log.debug("newOrderId={} uid={}", newOrderId, uid);
 
         final boolean completed = (filledSize == size);
 
         if (completed) {
             if (logDebug) log.debug("completed");
             // order was matched completely - nothing to place - can just return
-            eventsHelper.fillResultCode(RESULT_SUCCESS, true, action, false);
+            eventsHelper.appendResultCode(RESULT_SUCCESS, true, action, false);
             return;
         }
 
@@ -143,7 +142,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         if (idMap.containsKey(newOrderId)) {
             // duplicate order id - can match, but can not place - reject it
             eventsHelper.appendReduceEvent(price, reserveBidPrice, nonMatchedSize);
-            eventsHelper.fillResultCode(RESULT_SUCCESS, true, action, true);
+            eventsHelper.appendResultCode(RESULT_SUCCESS, true, action, true);
 
             log.warn("reject duplicate order id: {}", newOrderId);
             return;
@@ -160,6 +159,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 uid,
                 timestamp);
 
+        if (logDebug) log.debug("placing into order book: {}", orderRecord);
+
         getBucketsByAction(action)
                 .computeIfAbsent(price, p -> new OrdersBucketNaive(p, eventsHelper))
                 .put(orderRecord);
@@ -167,7 +168,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         idMap.put(newOrderId, orderRecord);
 
         resultsBuffer.appendLong(nonMatchedSize);
-        eventsHelper.fillResultCode(RESULT_SUCCESS, false, action, false);
+
+        eventsHelper.appendResultCode(RESULT_SUCCESS, false, action, false);
 
         if (logDebug) log.debug("placed maker order: {}", orderRecord);
     }
@@ -201,7 +203,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             eventsHelper.appendReduceEvent(price, reserveBidPrice, rejectedSize);
         }
 
-        eventsHelper.fillResultCode(RESULT_SUCCESS, true, action, rejectedSize != 0);
+        eventsHelper.appendResultCode(RESULT_SUCCESS, true, action, rejectedSize != 0);
     }
 
     /**
@@ -241,7 +243,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             eventsHelper.appendReduceEvent(price, reserveBidPrice, size);
         }
 
-        eventsHelper.fillResultCode(RESULT_SUCCESS, true, action, !canMatch);
+        eventsHelper.appendResultCode(RESULT_SUCCESS, true, action, !canMatch);
     }
 
     private boolean isBudgetLimitSatisfied(final OrderAction orderAction, final long calculated, final long limit) {
@@ -347,7 +349,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // order already matched and removed from order book previously
-            eventsHelper.fillResultCode(
+            eventsHelper.appendResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
                     true,
                     OrderAction.ASK, // arbitrary action, should be ignored
@@ -375,7 +377,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 order.getSize() - order.getFilled());
 
         // fill events header
-        eventsHelper.fillResultCode(
+        eventsHelper.appendResultCode(
                 RESULT_SUCCESS,
                 true,
                 order.action,
@@ -396,7 +398,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // not found or previously matched, moved or cancelled
-            eventsHelper.fillResultCode(
+            eventsHelper.appendResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
                     true,
                     OrderAction.ASK, // arbitrary action, should be ignored
@@ -405,7 +407,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         }
 
         if (requestedReduceSize <= 0) {
-            eventsHelper.fillResultCode(
+            eventsHelper.appendResultCode(
                     RESULT_INCORRECT_REDUCE_SIZE,
                     false,
                     OrderAction.ASK, // arbitrary action, should be ignored
@@ -449,7 +451,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         }
 
         // fill events header
-        eventsHelper.fillResultCode(
+        eventsHelper.appendResultCode(
                 RESULT_SUCCESS,
                 canRemove,
                 order.action,
@@ -471,7 +473,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // already matched, moved or cancelled
-            eventsHelper.fillResultCode(
+            eventsHelper.appendResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
                     true,
                     OrderAction.ASK, // arbitrary action, should be ignored
@@ -482,7 +484,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         // reserved price risk check for exchange bids
         if (order.action == OrderAction.BID && symbolSpec.isExchangeType() && newPrice > order.reserveBidPrice) {
             resultsBuffer.appendLong(order.size - order.filled); // unmatched size
-            eventsHelper.fillResultCode(
+            eventsHelper.appendResultCode(
                     RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT,
                     false,
                     order.action,
@@ -526,7 +528,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             resultsBuffer.appendLong(order.size - filled); // unmatched size
         }
 
-        eventsHelper.fillResultCode(RESULT_SUCCESS, takerCompleted, order.action, false);
+        eventsHelper.appendResultCode(RESULT_SUCCESS, takerCompleted, order.action, false);
     }
 
     /**

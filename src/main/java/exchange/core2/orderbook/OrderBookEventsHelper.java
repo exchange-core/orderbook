@@ -56,7 +56,7 @@ public final class OrderBookEventsHelper {
 //        log.debug("BUF after trade event: \n{}", PrintBufferUtil.hexDump(resultsBuffer, 0, 128));
 
         if (debug) {
-            log.debug("BUF after trade event: \n{}", resultsBuffer.hexDump());
+            log.debug("BUF after trade event: \n{}", resultsBuffer.prettyHexDump());
         }
     }
 
@@ -69,10 +69,10 @@ public final class OrderBookEventsHelper {
         resultsBuffer.appendLong(reduceSize);
     }
 
-    public void fillResultCode(final short resultCode,
-                               final boolean takerOrderCompleted,
-                               final OrderAction takerAction,
-                               final boolean hasReduceEvent) {
+    public void appendResultCode(final short resultCode,
+                                 final boolean takerOrderCompleted,
+                                 final OrderAction takerAction,
+                                 final boolean hasReduceEvent) {
 
         final short encodedResult = (short) (resultCode
                 | (takerOrderCompleted ? RESULT_OFFSET_TAKE_ORDER_COMPLETED_FLAG : 0)
@@ -82,7 +82,7 @@ public final class OrderBookEventsHelper {
         resultsBuffer.appendShort(encodedResult);
 
         if (debug) {
-            log.debug("BUF after fillEventsHeader: \n{}", PrintBufferUtil.hexDump(resultsBuffer.getBuffer(), RESPONSE_OFFSET_HEADER_END, RESPONSE_OFFSET_TBLK_END));
+            log.debug("encodedResult={} BUF after fillEventsHeader: \n{}", encodedResult, resultsBuffer.prettyHexDump());
         }
     }
 

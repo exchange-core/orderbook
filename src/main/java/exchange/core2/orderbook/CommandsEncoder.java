@@ -29,10 +29,11 @@ public final class CommandsEncoder {
                                                  final long price,
                                                  final long reservedBidPrice,
                                                  final long size,
-                                                 final OrderAction action) {
+                                                 final OrderAction action,
+                                                 final int userCookie) {
 
         final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(64);
-        placeOrder(buf, 0, type, orderId, uid, price, reservedBidPrice, size, action);
+        placeOrder(buf, 0, type, orderId, uid, price, reservedBidPrice, size, action, userCookie);
         return buf;
     }
 
@@ -44,15 +45,17 @@ public final class CommandsEncoder {
                                   final long price,
                                   final long reservedBidPrice,
                                   final long size,
-                                  final OrderAction action) {
+                                  final OrderAction action,
+                                  final int userCookie) {
 
         buf.putLong(offset + PLACE_OFFSET_UID, uid);
         buf.putLong(offset + PLACE_OFFSET_ORDER_ID, orderId);
         buf.putLong(offset + PLACE_OFFSET_PRICE, price);
         buf.putLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE, reservedBidPrice);
         buf.putLong(offset + PLACE_OFFSET_SIZE, size);
-        buf.putLong(offset + PLACE_OFFSET_ACTION, action.getCode());
-        buf.putLong(offset + PLACE_OFFSET_TYPE, type);
+        buf.putInt(offset + PLACE_OFFSET_USER_COOKIE, userCookie);
+        buf.putByte(offset + PLACE_OFFSET_ACTION, action.getCode());
+        buf.putByte(offset + PLACE_OFFSET_TYPE, type);
     }
 
 

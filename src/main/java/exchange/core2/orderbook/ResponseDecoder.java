@@ -36,10 +36,12 @@ public final class ResponseDecoder {
     public static CommandResponse readResult(final MutableDirectBuffer buf,
                                              final int responseMsgSize) {
 
-        return readResult(new BufferReader(buf, 0, responseMsgSize));
+        return readResult(new BufferReader(buf, responseMsgSize, 0));
     }
 
     public static CommandResponse readResult(final BufferReader buf) {
+
+//        log.debug("Parsing response:\n{}", buf.prettyHexDump());
 
         byte commandType = buf.readByte();
 

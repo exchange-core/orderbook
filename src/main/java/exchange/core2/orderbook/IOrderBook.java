@@ -36,7 +36,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * Rejection chain attached in case of error (to simplify risk handling)
      * <p>
      */
-    void newOrder(DirectBuffer buffer, int offset);
+    void newOrder(DirectBuffer buffer, int offset, long timestamp);
 
     /**
      * Cancel order completely.
@@ -184,16 +184,19 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     short RESULT_UNSUPPORTED_COMMAND = 2;
     short RESULT_INVALID_ORDER_BOOK_ID = 3;
     short RESULT_INCORRECT_ORDER_SIZE = 4;
-    short RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = 5;
+    short RESULT_INCORRECT_REDUCE_SIZE = 5;
+    short RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = 6;
 
     short RESULT_OFFSET_REDUCE_EVT_FLAG = 1 << 14;
     short RESULT_OFFSET_TAKER_ACTION_BID_FLAG = 1 << 13;
     short RESULT_OFFSET_TAKE_ORDER_COMPLETED_FLAG = 1 << 12;
+    short RESULT_MASK = (1 << 12) - 1;
 
     /*
      * Incoming message offsets
      *
      */
+    // Place
     int PLACE_OFFSET_UID = 0;
     int PLACE_OFFSET_ORDER_ID = PLACE_OFFSET_UID + BitUtil.SIZE_OF_LONG;
     int PLACE_OFFSET_PRICE = PLACE_OFFSET_ORDER_ID + BitUtil.SIZE_OF_LONG;
@@ -204,15 +207,18 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     int PLACE_OFFSET_TYPE = PLACE_OFFSET_ACTION + BitUtil.SIZE_OF_BYTE;
     int PLACE_OFFSET_END = PLACE_OFFSET_TYPE + BitUtil.SIZE_OF_BYTE;
 
+    // Cancel
     int CANCEL_OFFSET_UID = 0;
     int CANCEL_OFFSET_ORDER_ID = CANCEL_OFFSET_UID + BitUtil.SIZE_OF_LONG;
     int CANCEL_OFFSET_END = CANCEL_OFFSET_ORDER_ID + BitUtil.SIZE_OF_LONG;
 
+    // Reduce
     int REDUCE_OFFSET_UID = 0;
     int REDUCE_OFFSET_ORDER_ID = REDUCE_OFFSET_UID + BitUtil.SIZE_OF_LONG;
     int REDUCE_OFFSET_SIZE = REDUCE_OFFSET_ORDER_ID + BitUtil.SIZE_OF_LONG;
     int REDUCE_OFFSET_END = REDUCE_OFFSET_SIZE + BitUtil.SIZE_OF_LONG;
 
+    // Move
     int MOVE_OFFSET_UID = 0;
     int MOVE_OFFSET_ORDER_ID = MOVE_OFFSET_UID + BitUtil.SIZE_OF_LONG;
     int MOVE_OFFSET_PRICE = MOVE_OFFSET_ORDER_ID + BitUtil.SIZE_OF_LONG;
@@ -250,7 +256,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     int RESPONSE_OFFSET_REVT_PRICE = 0;
     int RESPONSE_OFFSET_REVT_RESERV_BID_PRICE = RESPONSE_OFFSET_REVT_PRICE + BitUtil.SIZE_OF_LONG;
     int RESPONSE_OFFSET_REVT_REDUCED_VOL = RESPONSE_OFFSET_REVT_RESERV_BID_PRICE + BitUtil.SIZE_OF_LONG;
-    int RESPONSE_OFFSET_REVT_END = RESPONSE_OFFSET_REVT_REDUCED_VOL + BitUtil.SIZE_OF_BYTE;
+    int RESPONSE_OFFSET_REVT_END = RESPONSE_OFFSET_REVT_REDUCED_VOL + BitUtil.SIZE_OF_LONG;
 
     // L2 data header // TODO add symbolId and time ()
     int RESPONSE_OFFSET_L2_BLK_ASK_RECORDS = 0;

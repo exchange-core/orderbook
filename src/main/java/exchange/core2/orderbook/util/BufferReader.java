@@ -22,15 +22,24 @@ import org.agrona.DirectBuffer;
 public class BufferReader {
 
     private final DirectBuffer buffer;
+
+    // initial position (start of message)
     private final int initialPosition;
+
+    // message size
+    private final int size;
+
+    // position pointer for sequential reading
     private int readPosition;
 
     // TODO limit reader position on creation
 
-    public BufferReader(final DirectBuffer buffer, final int initialPosition) {
+    public BufferReader(final DirectBuffer buffer, final int size, final int initialPosition) {
 
         this.buffer = buffer;
         this.initialPosition = initialPosition;
+        this.size = size;
+
         this.readPosition = initialPosition;
     }
 
@@ -44,6 +53,10 @@ public class BufferReader {
 
     public int getReadPosition() {
         return readPosition;
+    }
+
+    public int getSize() {
+        return size;
     }
 
     public byte readByte() {
@@ -67,6 +80,26 @@ public class BufferReader {
     public long readLong() {
         final long w = buffer.getLong(readPosition);
         readPosition += BitUtil.SIZE_OF_LONG;
+        return w;
+    }
+
+    public byte getByte(final int offset) {
+        final byte b = buffer.getByte(initialPosition + offset);
+        return b;
+    }
+
+    public short getShort(final int offset) {
+        final short s = buffer.getShort(initialPosition + offset);
+        return s;
+    }
+
+    public int getInt(final int offset) {
+        final int i = buffer.getInt(initialPosition + offset);
+        return i;
+    }
+
+    public long getLong(final int offset) {
+        final long w = buffer.getLong(initialPosition + offset);
         return w;
     }
 

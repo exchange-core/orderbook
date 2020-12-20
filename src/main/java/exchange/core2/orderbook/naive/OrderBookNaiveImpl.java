@@ -57,7 +57,9 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
 
     @Override
-    public void newOrder(final DirectBuffer buffer, final int offset) {
+    public void newOrder(final DirectBuffer buffer,
+                         final int offset,
+                         final long timestamp) {
 
         final byte orderType = buffer.getByte(offset + PLACE_OFFSET_TYPE);
 
@@ -82,7 +84,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         switch (orderType) {
             case ORDER_TYPE_GTC:
-                newOrderPlaceGtc(buffer, offset, size, newOrderId, uid, action);
+                newOrderPlaceGtc(buffer, offset, size, newOrderId, uid, action, timestamp);
                 return;
             case ORDER_TYPE_IOC:
                 newOrderMatchIoc(buffer, offset, size, action);
@@ -91,18 +93,30 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 newOrderMatchFokBudget(buffer, offset, size, action);
                 return;
             // TODO IOC_BUDGET and FOK support
+            default:
+                throw new IllegalStateException("Unsupported order type: " + orderType);
         }
-
-        throw new IllegalStateException("Unsupported order type: " + orderType);
     }
 
 
+    /**
+     * Place GTC order
+     *
+     * @param buffer
+     * @param offset
+     * @param size
+     * @param newOrderId
+     * @param uid
+     * @param action
+     * @param timestamp
+     */
     private void newOrderPlaceGtc(final DirectBuffer buffer,
                                   final int offset,
                                   final long size,
                                   final long newOrderId,
                                   final long uid,
-                                  final OrderAction action) {
+                                  final OrderAction action,
+                                  final long timestamp) {
 
         final long price = buffer.getLong(offset + PLACE_OFFSET_PRICE);
         final long reserveBidPrice = buffer.getLong(offset + PLACE_OFFSET_RESERVED_BID_PRICE);
@@ -124,9 +138,11 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             return;
         }
 
+        final long nonMatchedSize = size - filledSize;
+
         if (idMap.containsKey(newOrderId)) {
             // duplicate order id - can match, but can not place - reject it
-            eventsHelper.appendReduceEvent(price, reserveBidPrice, size - filledSize);
+            eventsHelper.appendReduceEvent(price, reserveBidPrice, nonMatchedSize);
             eventsHelper.fillResultCode(RESULT_SUCCESS, true, action, true);
 
             log.warn("reject duplicate order id: {}", newOrderId);
@@ -142,7 +158,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 reserveBidPrice,
                 action,
                 uid,
-                0L); // TODO save timestamp
+                timestamp);
 
         getBucketsByAction(action)
                 .computeIfAbsent(price, p -> new OrdersBucketNaive(p, eventsHelper))
@@ -150,11 +166,20 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         idMap.put(newOrderId, orderRecord);
 
+        resultsBuffer.appendLong(nonMatchedSize);
         eventsHelper.fillResultCode(RESULT_SUCCESS, false, action, false);
 
         if (logDebug) log.debug("placed maker order: {}", orderRecord);
     }
 
+    /**
+     * Match IoC order
+     *
+     * @param buffer
+     * @param offset
+     * @param size
+     * @param action
+     */
     private void newOrderMatchIoc(final DirectBuffer buffer,
                                   final int offset,
                                   final long size,
@@ -179,12 +204,20 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         eventsHelper.fillResultCode(RESULT_SUCCESS, true, action, rejectedSize != 0);
     }
 
+    /**
+     * Match FoK order (budget cap)
+     *
+     * @param buffer
+     * @param offset
+     * @param size
+     * @param action
+     */
     private void newOrderMatchFokBudget(final DirectBuffer buffer,
                                         final int offset,
                                         final long size,
                                         final OrderAction action) {
 
-        final SortedMap<Long, OrdersBucketNaive> fullSubtree = action == OrderAction.ASK ? bidBuckets : askBuckets;
+        final SortedMap<Long, OrdersBucketNaive> fullSubtree = (action == OrderAction.ASK) ? bidBuckets : askBuckets;
 
         final Optional<Long> budget = checkBudgetToFill(size, fullSubtree);
 
@@ -194,13 +227,17 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         if (logDebug) log.debug("Budget calc: {} requested: {}", budget, price);
 
         final boolean canMatch = budget.isPresent() && isBudgetLimitSatisfied(action, budget.get(), price);
+
         if (canMatch) {
+            // completely match the order
             final long filled = tryMatchInstantly(size, reserveBidPrice, fullSubtree, 0);
 
             if (filled != size) {
                 throw new IllegalStateException("complete match is expected");
             }
+
         } else {
+            // send reduce event if can not fill
             eventsHelper.appendReduceEvent(price, reserveBidPrice, size);
         }
 
@@ -211,7 +248,13 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         return calculated == limit || (orderAction == OrderAction.BID ^ calculated > limit);
     }
 
-
+    /**
+     * Check if budget can be filled
+     *
+     * @param size
+     * @param matchingBuckets
+     * @return
+     */
     private Optional<Long> checkBudgetToFill(
             long size,
             final SortedMap<Long, OrdersBucketNaive> matchingBuckets) {
@@ -352,7 +395,6 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
-            resultsBuffer.appendLong(0L); // remaining size (removed)
             // not found or previously matched, moved or cancelled
             eventsHelper.fillResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
@@ -362,11 +404,29 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             return;
         }
 
+        if (requestedReduceSize <= 0) {
+            eventsHelper.fillResultCode(
+                    RESULT_INCORRECT_REDUCE_SIZE,
+                    false,
+                    OrderAction.ASK, // arbitrary action, should be ignored
+                    false);
+            return;
+        }
+
+        // always > 0 (otherwise order automatically removed)
         final long remainingSize = order.size - order.filled;
-        final long actualReduceBy = Math.min(remainingSize, Math.max(requestedReduceSize, 0));
+
+        // always > 0
+        final long actualReduceBy = Math.min(remainingSize, requestedReduceSize);
 
         final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.action);
         final OrdersBucketNaive ordersBucket = buckets.get(order.price);
+
+        // send reduce event
+        eventsHelper.appendReduceEvent(
+                order.price,
+                order.reserveBidPrice,
+                actualReduceBy);
 
         final boolean canRemove = (actualReduceBy == remainingSize);
 
@@ -381,7 +441,6 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 buckets.remove(order.price);
             }
 
-            resultsBuffer.appendLong(0L); // remaining size (removed)
         } else {
 
             order.size -= actualReduceBy;
@@ -389,21 +448,12 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             resultsBuffer.appendLong(order.size - order.filled); // remaining unmatched size
         }
 
-        if (actualReduceBy != 0) {
-
-            // send reduce event
-            eventsHelper.appendReduceEvent(
-                    order.price,
-                    order.reserveBidPrice,
-                    actualReduceBy);
-        }
-
         // fill events header
         eventsHelper.fillResultCode(
                 RESULT_SUCCESS,
                 canRemove,
                 order.action,
-                actualReduceBy != 0);
+                true);
 
     }
 
@@ -421,7 +471,6 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final NaivePendingOrder order = idMap.get(orderId);
         if (order == null || order.uid != cmdUid) {
             // already matched, moved or cancelled
-            resultsBuffer.appendLong(0L); // unmatched size
             eventsHelper.fillResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
                     true,
@@ -466,7 +515,6 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         if (takerCompleted) {
             // order was fully matched (100% marketable) - removing from order book
             idMap.remove(orderId);
-            resultsBuffer.appendLong(0L); // unmatched size
 
         } else {
             order.filled = filled;
@@ -475,7 +523,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             buckets.computeIfAbsent(newPrice, p -> new OrdersBucketNaive(p, eventsHelper))
                     .put(order);
 
-            resultsBuffer.appendLong(order.size - order.filled); // unmatched size
+            resultsBuffer.appendLong(order.size - filled); // unmatched size
         }
 
         eventsHelper.fillResultCode(RESULT_SUCCESS, takerCompleted, order.action, false);

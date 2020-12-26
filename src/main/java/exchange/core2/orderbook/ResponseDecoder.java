@@ -33,17 +33,23 @@ public final class ResponseDecoder {
 
     private static final Logger log = LoggerFactory.getLogger(ResponseDecoder.class);
 
-    public static CommandResponse readResult(final MutableDirectBuffer buf,
-                                             final int responseMsgSize) {
+    public static OrderBookResponse readResult(final MutableDirectBuffer buf,
+                                               final int responseMsgSize) {
 
         return readResult(new BufferReader(buf, responseMsgSize, 0));
     }
 
-    public static CommandResponse readResult(final BufferReader buf) {
+    public static OrderBookResponse readResult(final BufferReader buf) {
 
 //        log.debug("Parsing response:\n{}", buf.prettyHexDump());
 
-        byte commandType = buf.readByte();
+        final int msgSize = buf.getSize();
+
+        final byte commandType = buf.readByte();
+
+        if (commandType == QUERY_ORDER_BOOK) {
+            return decodeL2Data(buf, msgSize);
+        }
 
         final long uid = buf.readLong();
         final long orderId = buf.readLong();
@@ -55,7 +61,6 @@ public final class ResponseDecoder {
             userCookie = 0;
         }
 
-        final int msgSize = buf.getSize();
 
         final short encodedResultCode = buf.getShort(msgSize - SIZE_OF_SHORT);
 
@@ -149,6 +154,27 @@ public final class ResponseDecoder {
         }
     }
 
+    private static OrderBookResponse decodeL2Data(BufferReader buf, int msgSize) {
+
+        final short encodedResultCode = buf.getShort(msgSize - SIZE_OF_SHORT);
+        if (encodedResultCode == RESULT_SUCCESS) {
+
+            final int asksNum = buf.getInt(msgSize - SIZE_OF_SHORT - SIZE_OF_INT - SIZE_OF_INT);
+            final int bidsNum = buf.getInt(msgSize - SIZE_OF_SHORT - SIZE_OF_INT);
+//            log.debug("asksNum={} bidsNum={}", asksNum, bidsNum);
+
+//            log.debug("ASKS");
+            final List<QueryResponseL2Data.L2Record> asks = readL2Records(buf, asksNum);
+//            log.debug("BIDS");
+            final List<QueryResponseL2Data.L2Record> bids = readL2Records(buf, bidsNum);
+
+
+            return new QueryResponseL2Data(encodedResultCode, asks, bids);
+        } else {
+            return new QueryResponseL2Data(encodedResultCode, Collections.emptyList(), Collections.emptyList());
+        }
+    }
+
     private static TradeEvent readTradeEvent(final BufferReader buf,
                                              final int offset) {
 
@@ -171,6 +197,20 @@ public final class ResponseDecoder {
         final long reducedVolume = buf.getLong(offset + RESPONSE_OFFSET_REVT_REDUCED_VOL);
 
         return new ReduceEvent(reducedVolume, price, reservedBidPrice);
+    }
+
+    private static List<QueryResponseL2Data.L2Record> readL2Records(final BufferReader buf, final int num) {
+        final List<QueryResponseL2Data.L2Record> list = new ArrayList<>(num);
+        for (int i = 0; i < num; i++) {
+            final long price = buf.readLong();
+            final long volume = buf.readLong();
+            final int orders = buf.readInt();
+
+//            log.debug("{}", new QueryResponseL2Data.L2Record(price, volume, orders));
+
+            list.add(new QueryResponseL2Data.L2Record(price, volume, orders));
+        }
+        return list;
     }
 
 }

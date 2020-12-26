@@ -92,7 +92,8 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 return;
             // TODO IOC_BUDGET and FOK support
             default:
-                throw new IllegalStateException("Unsupported order type: " + orderType);
+                if (logDebug) log.debug("RESULT_UNSUPPORTED_ORDER_TYPE");
+                eventsHelper.appendResultCode(IOrderBook.RESULT_UNSUPPORTED_ORDER_TYPE, true, action, false);
         }
     }
 
@@ -278,7 +279,9 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
                 return Optional.of(result);
             }
         }
+
         if (logDebug) log.debug("not enough liquidity to fill size={}", size);
+
         return Optional.empty();
     }
 
@@ -347,7 +350,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         resultsBuffer.appendLong(orderId);
 
         final NaivePendingOrder order = idMap.get(orderId);
-        if (order == null || order.uid != cmdUid) {
+        if (order == null || order.getUid() != cmdUid) {
             // order already matched and removed from order book previously
             eventsHelper.appendResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
@@ -360,27 +363,27 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         // now can remove it
         idMap.remove(orderId);
 
-        final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.action);
-        final long price = order.price;
+        final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.getAction());
+        final long price = order.getPrice();
         final OrdersBucketNaive ordersBucket = buckets.get(price);
 
         // remove order and whole bucket if its empty
-        ordersBucket.remove(orderId, cmdUid);
+        ordersBucket.remove(orderId);
         if (ordersBucket.getTotalVolume() == 0) {
             buckets.remove(price);
         }
 
         // put reduce event
         eventsHelper.appendReduceEvent(
-                order.price,
-                order.reserveBidPrice,
-                order.getSize() - order.getFilled());
+                order.getPrice(),
+                order.getReserveBidPrice(),
+                order.getUnmatchedSize());
 
         // fill events header
         eventsHelper.appendResultCode(
                 RESULT_SUCCESS,
                 true,
-                order.action,
+                order.getAction(),
                 true);
     }
 
@@ -396,7 +399,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         resultsBuffer.appendLong(orderId);
 
         final NaivePendingOrder order = idMap.get(orderId);
-        if (order == null || order.uid != cmdUid) {
+        if (order == null || order.getUid() != cmdUid) {
             // not found or previously matched, moved or cancelled
             eventsHelper.appendResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
@@ -416,18 +419,18 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         }
 
         // always > 0 (otherwise order automatically removed)
-        final long remainingSize = order.size - order.filled;
+        final long remainingSize = order.getUnmatchedSize();
 
         // always > 0
         final long actualReduceBy = Math.min(remainingSize, requestedReduceSize);
 
-        final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.action);
-        final OrdersBucketNaive ordersBucket = buckets.get(order.price);
+        final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.getAction());
+        final OrdersBucketNaive ordersBucket = buckets.get(order.getPrice());
 
         // send reduce event
         eventsHelper.appendReduceEvent(
-                order.price,
-                order.reserveBidPrice,
+                order.getPrice(),
+                order.getReserveBidPrice(),
                 actualReduceBy);
 
         final boolean canRemove = (actualReduceBy == remainingSize);
@@ -438,23 +441,23 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             idMap.remove(orderId);
 
             // canRemove order and whole bucket if it is empty
-            ordersBucket.remove(orderId, cmdUid);
+            ordersBucket.remove(orderId);
             if (ordersBucket.getTotalVolume() == 0) {
-                buckets.remove(order.price);
+                buckets.remove(order.getPrice());
             }
 
         } else {
 
-            order.size -= actualReduceBy;
+            order.setSize(order.getSize() - actualReduceBy);
             ordersBucket.reduceSize(actualReduceBy);
-            resultsBuffer.appendLong(order.size - order.filled); // remaining unmatched size
+            resultsBuffer.appendLong(order.getUnmatchedSize()); // remaining unmatched size
         }
 
         // fill events header
         eventsHelper.appendResultCode(
                 RESULT_SUCCESS,
                 canRemove,
-                order.action,
+                order.getAction(),
                 true);
 
     }
@@ -471,7 +474,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         resultsBuffer.appendLong(orderId);
 
         final NaivePendingOrder order = idMap.get(orderId);
-        if (order == null || order.uid != cmdUid) {
+        if (order == null || order.getUid() != cmdUid) {
             // already matched, moved or cancelled
             eventsHelper.appendResultCode(
                     RESULT_UNKNOWN_ORDER_ID,
@@ -482,53 +485,53 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         }
 
         // reserved price risk check for exchange bids
-        if (order.action == OrderAction.BID && symbolSpec.isExchangeType() && newPrice > order.reserveBidPrice) {
-            resultsBuffer.appendLong(order.size - order.filled); // unmatched size
+        if (order.getAction() == OrderAction.BID && symbolSpec.isExchangeType() && newPrice > order.getReserveBidPrice()) {
+            resultsBuffer.appendLong(order.getUnmatchedSize());
             eventsHelper.appendResultCode(
                     RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT,
                     false,
-                    order.action,
+                    order.getAction(),
                     false);
             return;
         }
 
-        final long price = order.price;
-        final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.action);
+        final long price = order.getPrice();
+        final NavigableMap<Long, OrdersBucketNaive> buckets = getBucketsByAction(order.getAction());
         final OrdersBucketNaive bucket = buckets.get(price);
 
         // take order out of the original bucket and clean bucket if its empty
-        bucket.remove(orderId, cmdUid);
+        bucket.remove(orderId);
 
         if (bucket.getTotalVolume() == 0) {
             buckets.remove(price);
         }
 
-        order.price = newPrice;
+        order.setPrice(newPrice);
 
         // try match with new price
         final long filled = tryMatchInstantly(
-                order.size,
-                order.reserveBidPrice,
-                subtreeForMatching(order.action, newPrice),
-                order.filled);
+                order.getSize(),
+                order.getReserveBidPrice(),
+                subtreeForMatching(order.getAction(), newPrice),
+                order.getFilled());
 
-        final boolean takerCompleted = (filled == order.size);
+        final boolean takerCompleted = (filled == order.getSize());
 
         if (takerCompleted) {
             // order was fully matched (100% marketable) - removing from order book
             idMap.remove(orderId);
 
         } else {
-            order.filled = filled;
+            order.setFilled(filled);
 
             // if not filled completely - put it into corresponding bucket
             buckets.computeIfAbsent(newPrice, p -> new OrdersBucketNaive(p, eventsHelper))
                     .put(order);
 
-            resultsBuffer.appendLong(order.size - filled); // unmatched size
+            resultsBuffer.appendLong(order.getSize() - filled); // unmatched size
         }
 
-        eventsHelper.appendResultCode(RESULT_SUCCESS, takerCompleted, order.action, false);
+        eventsHelper.appendResultCode(RESULT_SUCCESS, takerCompleted, order.getAction(), false);
     }
 
     /**
@@ -543,12 +546,18 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
     @Override
     public void sendL2Snapshot(final DirectBuffer buffer, final int offset) {
-        final short sizeOffer = buffer.getShort(offset);
+        final int sizeOffer = buffer.getInt(offset);
         final int maxSize = sizeOffer > 0 ? sizeOffer : Integer.MAX_VALUE;
+
+        resultsBuffer.appendByte(IOrderBook.QUERY_ORDER_BOOK);
+        if (sizeOffer <= 0) {
+            resultsBuffer.appendShort(RESULT_INCORRECT_L2_SIZE_LIMIT);
+            return;
+        }
 
         int asks = 0;
         for (final OrdersBucketNaive bucket : askBuckets.values()) {
-            eventsHelper.addL2Record(bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
+            eventsHelper.appendL2Record(bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
             if (++asks == maxSize) {
                 break;
             }
@@ -556,16 +565,17 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         int bids = 0;
         for (final OrdersBucketNaive bucket : bidBuckets.values()) {
-            eventsHelper.addL2Record(bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
+            eventsHelper.appendL2Record(bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
             if (++bids == maxSize) {
                 break;
             }
         }
 
-        resultsBuffer.appendByte(IOrderBook.QUERY_ORDER_BOOK);
         resultsBuffer.appendInt(asks);
         resultsBuffer.appendInt(bids);
         resultsBuffer.appendShort(RESULT_SUCCESS);
+
+        //log.debug("L2 DATA: {}", resultsBuffer.prettyHexDump());
     }
 
     /**
@@ -639,7 +649,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         final Consumer<OrdersBucketNaive> bucketConsumer =
                 bucket -> bucket.forEachOrder(
                         order -> {
-                            if (order.uid == uid) {
+                            if (order.getUid() == uid) {
                                 list.add(order);
                             }
                         });
@@ -662,23 +672,4 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
     public Stream<IOrder> bidOrdersStream(final boolean sorted) {
         return bidBuckets.values().stream().flatMap(bucket -> bucket.getAllOrders().stream());
     }
-
-    // for testing only
-    @Override
-    public int getOrdersNum(OrderAction action) {
-        final NavigableMap<Long, OrdersBucketNaive> buckets = (action == OrderAction.ASK) ? askBuckets : bidBuckets;
-        return buckets.values().stream().mapToInt(OrdersBucketNaive::getNumOrders).sum();
-//        int askOrders = askBuckets.values().stream().mapToInt(OrdersBucketNaive::getNumOrders).sum();
-//        int bidOrders = bidBuckets.values().stream().mapToInt(OrdersBucketNaive::getNumOrders).sum();
-        //log.debug("idMap:{} askOrders:{} bidOrders:{}", idMap.size(), askOrders, bidOrders);
-//        int knownOrders = idMap.size();
-//        assert knownOrders == askOrders + bidOrders : "inconsistent known orders";
-    }
-
-    @Override
-    public long getTotalOrdersVolume(OrderAction action) {
-        final NavigableMap<Long, OrdersBucketNaive> buckets = (action == OrderAction.ASK) ? askBuckets : bidBuckets;
-        return buckets.values().stream().mapToLong(OrdersBucketNaive::getTotalVolume).sum();
-    }
-
 }

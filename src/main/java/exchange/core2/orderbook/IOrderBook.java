@@ -66,18 +66,7 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
 
     void sendL2Snapshot(DirectBuffer buffer, int offset);
 
-
-    // testing only ?
-    int getOrdersNum(OrderAction action);
-
-    // testing only ?
-    long getTotalOrdersVolume(OrderAction action);
-
-    // testing only ?
     IOrder getOrderById(long orderId);
-
-    // testing only - validateInternalState without changing state
-    void verifyInternalState();
 
     /**
      * Search for all orders for specified user.<p>
@@ -95,6 +84,9 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     Stream<? extends IOrder> askOrdersStream(boolean sorted);
 
     Stream<? extends IOrder> bidOrdersStream(boolean sorted);
+
+    // testing only - validateInternalState without changing state
+    void verifyInternalState();
 
     /**
      * State hash for order books is implementation-agnostic
@@ -147,17 +139,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
         return getL2MarketDataSnapshot(Integer.MAX_VALUE);
     }
 
-    /**
-     * Request to publish L2 market data into outgoing disruptor message
-     *
-     * @param data - pre-allocated object from ring buffer
-     */
-    default void publishL2MarketDataSnapshot(L2MarketData data) {
-        int size = L2MarketData.L2_SIZE;
-        fillAsks(size, data);
-        fillBids(size, data);
-    }
-
     void fillAsks(int size, L2MarketData data);
 
     void fillBids(int size, L2MarketData data);
@@ -186,6 +167,8 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     short RESULT_INCORRECT_ORDER_SIZE = 4;
     short RESULT_INCORRECT_REDUCE_SIZE = 5;
     short RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = 6;
+    short RESULT_UNSUPPORTED_ORDER_TYPE = 7;
+    short RESULT_INCORRECT_L2_SIZE_LIMIT = 8;
 
     short RESULT_OFFSET_REDUCE_EVT_FLAG = 1 << 14;
     short RESULT_OFFSET_TAKER_ACTION_BID_FLAG = 1 << 13;

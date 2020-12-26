@@ -17,6 +17,7 @@ package exchange.core2.tests.util;
 
 import com.google.common.base.Strings;
 import exchange.core2.orderbook.L2MarketData;
+import exchange.core2.orderbook.events.QueryResponseL2Data;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.Arrays;
@@ -202,6 +203,27 @@ public class L2MarketDataHelper {
         return this;
     }
 
+    public boolean checkL2Data(final QueryResponseL2Data data) {
+
+        if (data.getAsks().size() != askOrders.length) return false;
+        if (data.getBids().size() != bidOrders.length) return false;
+
+        for (int i = 0; i < askOrders.length; i++) {
+            final QueryResponseL2Data.L2Record r = data.getAsks().get(i);
+            if (r.getPrice() != askPrices[i]) return false;
+            if (r.getOrders() != askOrders[i]) return false;
+            if (r.getVolume() != askVolumes[i]) return false;
+        }
+
+        for (int i = 0; i < bidOrders.length; i++) {
+            final QueryResponseL2Data.L2Record r = data.getBids().get(i);
+            if (r.getPrice() != bidPrices[i]) return false;
+            if (r.getOrders() != bidOrders[i]) return false;
+            if (r.getVolume() != bidVolumes[i]) return false;
+        }
+
+        return true;
+    }
 
     public static String dumpOrderBook(L2MarketData l2MarketData) {
 

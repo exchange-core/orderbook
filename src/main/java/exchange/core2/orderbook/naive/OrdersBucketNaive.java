@@ -56,28 +56,24 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
      * @param order - order
      */
     public void put(NaivePendingOrder order) {
-        entries.put(order.orderId, order);
-        totalVolume += order.size - order.filled;
+        entries.put(order.getOrderId(), order);
+        totalVolume += order.getUnmatchedSize();
     }
 
     /**
      * Remove order from the bucket
      *
      * @param orderId - order id
-     * @param uid     - order uid
-     * @return order if removed, or null if not found
+     * @throws IllegalStateException if order not found
      */
-    public NaivePendingOrder remove(long orderId, long uid) {
-        final NaivePendingOrder order = entries.get(orderId);
+    public void remove(final long orderId) {
+        final NaivePendingOrder order = entries.remove(orderId);
 //        log.debug("removing order: {}", order);
-        if (order == null || order.uid != uid) {
-            return null;
+        if (order == null) {
+            throw new IllegalStateException();
         }
 
-        entries.remove(orderId);
-
-        totalVolume -= order.size - order.filled;
-        return order;
+        totalVolume -= order.getUnmatchedSize();
     }
 
     /**
@@ -101,24 +97,24 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
             final NaivePendingOrder order = next.getValue();
 
             // calculate exact volume can fill for this order
-            final long v = Math.min(volumeToCollect, order.size - order.filled);
+            final long v = Math.min(volumeToCollect, order.getUnmatchedSize());
             totalMatchingVolume += v;
 
-            order.filled += v;
+            order.setFilled(order.getFilled() + v);
             volumeToCollect -= v;
             totalVolume -= v;
 
             // remove from order book filled orders
-            final boolean makerOrderCompleted = order.size == order.filled;
+            final boolean makerOrderCompleted = order.getUnmatchedSize() == 0;
 
             eventsHelper.appendTradeEvent(
                     order,
                     makerOrderCompleted,
                     v,
-                    order.action == OrderAction.ASK ? activeReservedBidPrice : order.reserveBidPrice);
+                    order.getAction() == OrderAction.ASK ? activeReservedBidPrice : order.getReserveBidPrice());
 
             if (makerOrderCompleted) {
-                orderRemover.accept(order.orderId);
+                orderRemover.accept(order.getOrderId());
                 iterator.remove();
             }
         }
@@ -146,15 +142,15 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
     }
 
     public void validate() {
-        long sum = entries.values().stream().mapToLong(c -> c.size - c.filled).sum();
+
+        final long sum = entries.values().stream()
+                .mapToLong(NaivePendingOrder::getUnmatchedSize)
+                .sum();
+
         if (sum != totalVolume) {
-            String msg = String.format("totalVolume=%d calculated=%d", totalVolume, sum);
+            final String msg = String.format("totalVolume=%d calculated=%d", totalVolume, sum);
             throw new IllegalStateException(msg);
         }
-    }
-
-    public NaivePendingOrder findOrder(long orderId) {
-        return entries.get(orderId);
     }
 
     /**
@@ -178,7 +174,7 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
 
     public String dumpToSingleLine() {
         String orders = getAllOrders().stream()
-                .map(o -> String.format("id%d_L%d_F%d", o.orderId, o.size, o.filled))
+                .map(o -> String.format("id%d_L%d_F%d", o.getOrderId(), o.getSize(), o.getFilled()))
                 .collect(Collectors.joining(", "));
 
         return String.format("%d : vol:%d num:%d : %s", price, totalVolume, getNumOrders(), orders);

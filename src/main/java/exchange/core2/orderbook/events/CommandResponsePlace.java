@@ -19,12 +19,10 @@ package exchange.core2.orderbook.events;
 import exchange.core2.orderbook.OrderAction;
 
 import java.util.List;
-import java.util.Optional;
 
 public final class CommandResponsePlace extends CommandResponse {
 
     private final int userCookie;
-    private final Long remainingSize;
 
     public CommandResponsePlace(final short resultCode,
                                 final long uid,
@@ -36,19 +34,13 @@ public final class CommandResponsePlace extends CommandResponse {
                                 final List<TradeEvent> trades,
                                 final ReduceEvent reduceEvent) {
 
-        super(resultCode, uid, orderId, takerAction, orderCompleted, trades, reduceEvent);
+        super(resultCode, uid, orderId, takerAction, orderCompleted, remainingSize, trades, reduceEvent);
 
         this.userCookie = userCookie;
-        this.remainingSize = remainingSize;
     }
 
     public int getUserCookie() {
         return userCookie;
     }
-
-    public Optional<Long> getRemainingSizeOpt() {
-        return Optional.ofNullable(remainingSize);
-    }
-
 
 }

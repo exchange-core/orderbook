@@ -21,36 +21,36 @@ import exchange.core2.orderbook.OrderAction;
 import java.util.List;
 import java.util.Optional;
 
-public abstract class CommandResponse {
+public abstract class CommandResponse extends OrderBookResponse{
 
-    private final short resultCode;
     private final long uid;
     private final long orderId;
     private final OrderAction takerAction;
     private final boolean orderCompleted; // when true - the order will never appear in the responses
+    private final Long remainingSize;
+
 
     private final List<TradeEvent> trades;
     private final ReduceEvent reduceEvent;
-
 
     public CommandResponse(final short resultCode,
                            final long uid,
                            final long orderId,
                            final OrderAction takerAction,
                            final boolean orderCompleted,
+                           final Long remainingSize,
                            final List<TradeEvent> trades,
                            final ReduceEvent reduceEvent) {
-        this.resultCode = resultCode;
+
+        super(resultCode);
+
         this.uid = uid;
         this.orderId = orderId;
         this.takerAction = takerAction;
         this.orderCompleted = orderCompleted;
+        this.remainingSize = remainingSize;
         this.trades = trades;
         this.reduceEvent = reduceEvent;
-    }
-
-    public short getResultCode() {
-        return resultCode;
     }
 
     public long getUid() {
@@ -76,4 +76,9 @@ public abstract class CommandResponse {
     public Optional<ReduceEvent> getReduceEventOpt() {
         return Optional.ofNullable(reduceEvent);
     }
+
+    public Optional<Long> getRemainingSizeOpt() {
+        return Optional.ofNullable(remainingSize);
+    }
+
 }

@@ -19,11 +19,8 @@ package exchange.core2.orderbook.events;
 import exchange.core2.orderbook.OrderAction;
 
 import java.util.List;
-import java.util.Optional;
 
 public final class CommandResponseMove extends CommandResponse {
-
-    private final Long remainingSize;
 
     public CommandResponseMove(final short resultCode,
                                final long uid,
@@ -34,12 +31,7 @@ public final class CommandResponseMove extends CommandResponse {
                                final List<TradeEvent> trades,
                                final ReduceEvent reduceEvent) {
 
-        super(resultCode, uid, orderId, takerAction, orderCompleted, trades, reduceEvent);
-
-        this.remainingSize = remainingSize;
+        super(resultCode, uid, orderId, takerAction, orderCompleted, remainingSize, trades, reduceEvent);
     }
 
-    public Optional<Long> getRemainingSizeOpt() {
-        return Optional.ofNullable(remainingSize);
-    }
 }

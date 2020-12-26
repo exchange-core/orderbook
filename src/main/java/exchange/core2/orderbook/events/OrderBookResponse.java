@@ -16,20 +16,22 @@
 
 package exchange.core2.orderbook.events;
 
-import exchange.core2.orderbook.OrderAction;
+import static exchange.core2.orderbook.IOrderBook.RESULT_SUCCESS;
 
-import java.util.List;
+public abstract class OrderBookResponse {
 
-public final class CommandResponseCancel extends CommandResponse {
+    private final short resultCode;
 
-    public CommandResponseCancel(final short resultCode,
-                                 final long uid,
-                                 final long orderId,
-                                 final OrderAction takerAction,
-                                 final boolean orderCompleted,
-                                 final List<TradeEvent> trades,
-                                 final ReduceEvent reduceEvent) {
+    public OrderBookResponse(final short resultCode) {
+        this.resultCode = resultCode;
+    }
 
-        super(resultCode, uid, orderId, takerAction, orderCompleted, null, trades, reduceEvent);
+    public short getResultCode() {
+        return resultCode;
+    }
+
+
+    public boolean isSuccessful() {
+        return resultCode == RESULT_SUCCESS;
     }
 }

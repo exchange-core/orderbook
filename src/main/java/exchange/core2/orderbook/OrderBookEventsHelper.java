@@ -16,7 +16,6 @@
 package exchange.core2.orderbook;
 
 import exchange.core2.orderbook.util.BufferWriter;
-import org.agrona.PrintBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,9 +86,9 @@ public final class OrderBookEventsHelper {
     }
 
 
-    public void addL2Record(final long price,
-                            final long volume,
-                            final int numOrders) {
+    public void appendL2Record(final long price,
+                               final long volume,
+                               final int numOrders) {
 
         resultsBuffer.appendLong(price);
         resultsBuffer.appendLong(volume);

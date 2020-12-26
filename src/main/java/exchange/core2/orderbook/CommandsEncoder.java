@@ -116,4 +116,18 @@ public final class CommandsEncoder {
         buf.putLong(offset + MOVE_OFFSET_PRICE, price);
     }
 
+    public static MutableDirectBuffer L2DataQuery(final int limit) {
+
+        final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(4);
+        L2DataQuery(buf, 0, limit);
+        return buf;
+    }
+
+    public static void L2DataQuery(final MutableDirectBuffer buf,
+                                   final int offset,
+                                   final int limit) {
+
+        buf.putLong(offset, limit);
+    }
+
 }

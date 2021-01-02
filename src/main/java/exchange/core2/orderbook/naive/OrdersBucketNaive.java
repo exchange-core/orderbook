@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
-public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
+public final class OrdersBucketNaive {
 
     private final long price;
 
@@ -70,7 +70,7 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
         final NaivePendingOrder order = entries.remove(orderId);
 //        log.debug("removing order: {}", order);
         if (order == null) {
-            throw new IllegalStateException();
+            throw new IllegalStateException("Removal of unknown order " + orderId);
         }
 
         totalVolume -= order.getUnmatchedSize();
@@ -180,11 +180,6 @@ public final class OrdersBucketNaive implements Comparable<OrdersBucketNaive> {
         return String.format("%d : vol:%d num:%d : %s", price, totalVolume, getNumOrders(), orders);
     }
 
-
-    @Override
-    public int compareTo(OrdersBucketNaive other) {
-        return Long.compare(this.getPrice(), other.getPrice());
-    }
 
     @Override
     public int hashCode() {

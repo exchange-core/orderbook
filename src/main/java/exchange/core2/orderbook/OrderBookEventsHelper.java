@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import static exchange.core2.orderbook.IOrderBook.*;
 
-public final class OrderBookEventsHelper {
+public class OrderBookEventsHelper {
 
     private static final Logger log = LoggerFactory.getLogger(OrderBookEventsHelper.class);
 

@@ -25,8 +25,6 @@ import java.util.Objects;
  */
 public final class L2MarketData {
 
-    public static final int L2_SIZE = 32;
-
     public int askSize;
     public int bidSize;
 
@@ -40,9 +38,6 @@ public final class L2MarketData {
     // when published
     public long timestamp;
     public long referenceSeq;
-
-//    public long totalVolumeAsk;
-//    public long totalVolumeBid;
 
     public L2MarketData(long[] askPrices, long[] askVolumes, long[] askOrders, long[] bidPrices, long[] bidVolumes, long[] bidOrders) {
         this.askPrices = askPrices;
@@ -65,30 +60,6 @@ public final class L2MarketData {
         this.bidOrders = new long[bidSize];
     }
 
-    public long[] getAskPricesCopy() {
-        return Arrays.copyOf(askPrices, askSize);
-    }
-
-    public long[] getAskVolumesCopy() {
-        return Arrays.copyOf(askVolumes, askSize);
-    }
-
-    public long[] getAskOrdersCopy() {
-        return Arrays.copyOf(askOrders, askSize);
-    }
-
-    public long[] getBidPricesCopy() {
-        return Arrays.copyOf(bidPrices, bidSize);
-    }
-
-    public long[] getBidVolumesCopy() {
-        return Arrays.copyOf(bidVolumes, bidSize);
-    }
-
-    public long[] getBidOrdersCopy() {
-        return Arrays.copyOf(bidOrders, bidSize);
-    }
-
     public long totalOrderBookVolumeAsk() {
         long totalVolume = 0L;
         for (int i = 0; i < askSize; i++) {
@@ -103,17 +74,6 @@ public final class L2MarketData {
             totalVolume += bidVolumes[i];
         }
         return totalVolume;
-    }
-
-
-    public L2MarketData copy() {
-        return new L2MarketData(
-                getAskPricesCopy(),
-                getAskVolumesCopy(),
-                getAskOrdersCopy(),
-                getBidPricesCopy(),
-                getBidVolumesCopy(),
-                getBidOrdersCopy());
     }
 
     @Override

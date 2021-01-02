@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Maksim Zheravin
+ * Copyright 2021 Maksim Zheravin
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package exchange.core2.orderbook;
+package exchange.core2.orderbook.util;
 
+import exchange.core2.orderbook.OrderAction;
 import org.agrona.ExpandableDirectByteBuffer;
 import org.agrona.MutableDirectBuffer;
 
@@ -76,6 +77,7 @@ public final class CommandsEncoder {
         buf.putLong(offset + PLACE_OFFSET_ORDER_ID, orderId);
     }
 
+
     public static MutableDirectBuffer reduce(final long orderId,
                                              final long uid,
                                              final long size) {
@@ -95,6 +97,7 @@ public final class CommandsEncoder {
         buf.putLong(offset + REDUCE_OFFSET_ORDER_ID, orderId);
         buf.putLong(offset + REDUCE_OFFSET_SIZE, size);
     }
+
 
     public static MutableDirectBuffer move(final long orderId,
                                            final long uid,
@@ -116,6 +119,7 @@ public final class CommandsEncoder {
         buf.putLong(offset + MOVE_OFFSET_PRICE, price);
     }
 
+
     public static MutableDirectBuffer L2DataQuery(final int limit) {
 
         final MutableDirectBuffer buf = new ExpandableDirectByteBuffer(4);
@@ -127,7 +131,7 @@ public final class CommandsEncoder {
                                    final int offset,
                                    final int limit) {
 
-        buf.putLong(offset, limit);
+        buf.putInt(offset, limit);
     }
 
 }

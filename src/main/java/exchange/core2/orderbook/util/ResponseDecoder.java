@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Maksim Zheravin
+ * Copyright 2021 Maksim Zheravin
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package exchange.core2.orderbook;
+package exchange.core2.orderbook.util;
 
-import exchange.core2.orderbook.events.*;
-import exchange.core2.orderbook.util.BufferReader;
+import exchange.core2.orderbook.OrderAction;
+import exchange.core2.orderbook.api.*;
 import org.agrona.MutableDirectBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -156,23 +156,30 @@ public final class ResponseDecoder {
 
     private static OrderBookResponse decodeL2Data(BufferReader buf, int msgSize) {
 
-        final short encodedResultCode = buf.getShort(msgSize - SIZE_OF_SHORT);
+        final short encodedResultCode = buf.getShort(msgSize - RESPONSE_OFFSET_L2_RESULT);
         if (encodedResultCode == RESULT_SUCCESS) {
 
-            final int asksNum = buf.getInt(msgSize - SIZE_OF_SHORT - SIZE_OF_INT - SIZE_OF_INT);
-            final int bidsNum = buf.getInt(msgSize - SIZE_OF_SHORT - SIZE_OF_INT);
-//            log.debug("asksNum={} bidsNum={}", asksNum, bidsNum);
+            final int asksNum = buf.getInt(msgSize - RESPONSE_OFFSET_L2_ASK_RECORDS);
+            final int bidsNum = buf.getInt(msgSize - RESPONSE_OFFSET_L2_BID_RECORDS);
 
-//            log.debug("ASKS");
             final List<QueryResponseL2Data.L2Record> asks = readL2Records(buf, asksNum);
-//            log.debug("BIDS");
             final List<QueryResponseL2Data.L2Record> bids = readL2Records(buf, bidsNum);
-
 
             return new QueryResponseL2Data(encodedResultCode, asks, bids);
         } else {
             return new QueryResponseL2Data(encodedResultCode, Collections.emptyList(), Collections.emptyList());
         }
+    }
+
+    private static List<QueryResponseL2Data.L2Record> readL2Records(final BufferReader buf, final int num) {
+        final List<QueryResponseL2Data.L2Record> list = new ArrayList<>(num);
+        for (int i = 0; i < num; i++) {
+            final long price = buf.readLong();
+            final long volume = buf.readLong();
+            final int orders = buf.readInt();
+            list.add(new QueryResponseL2Data.L2Record(price, volume, orders));
+        }
+        return list;
     }
 
     private static TradeEvent readTradeEvent(final BufferReader buf,
@@ -197,20 +204,6 @@ public final class ResponseDecoder {
         final long reducedVolume = buf.getLong(offset + RESPONSE_OFFSET_REVT_REDUCED_VOL);
 
         return new ReduceEvent(reducedVolume, price, reservedBidPrice);
-    }
-
-    private static List<QueryResponseL2Data.L2Record> readL2Records(final BufferReader buf, final int num) {
-        final List<QueryResponseL2Data.L2Record> list = new ArrayList<>(num);
-        for (int i = 0; i < num; i++) {
-            final long price = buf.readLong();
-            final long volume = buf.readLong();
-            final int orders = buf.readInt();
-
-//            log.debug("{}", new QueryResponseL2Data.L2Record(price, volume, orders));
-
-            list.add(new QueryResponseL2Data.L2Record(price, volume, orders));
-        }
-        return list;
     }
 
 }

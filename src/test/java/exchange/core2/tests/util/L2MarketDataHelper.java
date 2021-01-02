@@ -17,7 +17,7 @@ package exchange.core2.tests.util;
 
 import com.google.common.base.Strings;
 import exchange.core2.orderbook.L2MarketData;
-import exchange.core2.orderbook.events.QueryResponseL2Data;
+import exchange.core2.orderbook.api.QueryResponseL2Data;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.Arrays;

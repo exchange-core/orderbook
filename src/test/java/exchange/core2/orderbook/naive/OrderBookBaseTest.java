@@ -16,8 +16,10 @@
 package exchange.core2.orderbook.naive;
 
 import exchange.core2.orderbook.*;
-import exchange.core2.orderbook.events.*;
+import exchange.core2.orderbook.api.*;
 import exchange.core2.orderbook.util.BufferWriter;
+import exchange.core2.orderbook.util.CommandsEncoder;
+import exchange.core2.orderbook.util.ResponseDecoder;
 import exchange.core2.tests.util.L2MarketDataHelper;
 import org.agrona.ExpandableDirectByteBuffer;
 import org.agrona.MutableDirectBuffer;

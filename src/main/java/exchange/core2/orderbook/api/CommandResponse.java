@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package exchange.core2.orderbook.events;
+package exchange.core2.orderbook.api;
 
 import exchange.core2.orderbook.OrderAction;
 

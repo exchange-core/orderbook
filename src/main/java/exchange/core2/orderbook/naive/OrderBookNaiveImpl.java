@@ -163,7 +163,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         if (logDebug) log.debug("placing into order book: {}", orderRecord);
 
         getBucketsByAction(action)
-                .computeIfAbsent(price, p -> new OrdersBucketNaive(p, eventsHelper))
+                .computeIfAbsent(price, p -> new OrdersBucketNaive(p, eventsHelper, idMap::remove))
                 .put(orderRecord);
 
         idMap.put(newOrderId, orderRecord);
@@ -321,8 +321,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
             filled += bucket.match(
                     sizeLeft,
-                    reserveBidPriceTaker,
-                    idMap::remove);
+                    reserveBidPriceTaker);
 
             // remove empty bucket
             if (bucket.getTotalVolume() == 0) {
@@ -337,7 +336,6 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
         return filled;
     }
-
 
     @Override
     public void cancelOrder(DirectBuffer buffer, int offset) {
@@ -525,7 +523,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
             order.setFilled(filled);
 
             // if not filled completely - put it into corresponding bucket
-            buckets.computeIfAbsent(newPrice, p -> new OrdersBucketNaive(p, eventsHelper))
+            buckets.computeIfAbsent(newPrice, p -> new OrdersBucketNaive(p, eventsHelper, idMap::remove))
                     .put(order);
 
             resultsBuffer.appendLong(order.getSize() - filled); // unmatched size

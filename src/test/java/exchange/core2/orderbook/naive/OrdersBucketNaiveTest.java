@@ -16,6 +16,7 @@
 
 package exchange.core2.orderbook.naive;
 
+import exchange.core2.orderbook.IOrder;
 import exchange.core2.orderbook.OrderAction;
 import exchange.core2.orderbook.OrderBookEventsHelper;
 import exchange.core2.orderbook.util.BufferWriter;
@@ -41,7 +42,10 @@ import static org.mockito.Mockito.*;
 @RunWith(MockitoJUnitRunner.class)
 public class OrdersBucketNaiveTest {
 
+    private final static long PRICE = 132000L;
+
     private final static long BIDDER_HOLD_PRICE = 132800L;
+    private final static long BIDDER_HOLD_PRICE_1 = 132801L;
 
     private OrdersBucketNaive bucket;
 
@@ -62,7 +66,7 @@ public class OrdersBucketNaiveTest {
 
     @Before
     public void before() {
-        bucket = new OrdersBucketNaive(132800L, eventsHelper);
+        bucket = new OrdersBucketNaive(PRICE, eventsHelper, removeCallback);
         bucket.validate();
     }
 
@@ -70,7 +74,7 @@ public class OrdersBucketNaiveTest {
     @Test
     public void shouldReturnPrice() {
 
-        assertThat(bucket.getPrice(), is(132800L));
+        assertThat(bucket.getPrice(), is(PRICE));
     }
 
 
@@ -141,6 +145,22 @@ public class OrdersBucketNaiveTest {
         NaivePendingOrder order2 = addNewOrder(2L, 201L);
         order2.setFilled(order2.getFilled() + 1);
         bucket.validate();
+    }
+
+    @Test
+    public void shouldMatchEmptyBucket() {
+
+        long matched = match(1L);
+
+        assertThat(matched, is(0L));
+
+        assertThat(bucket.getTotalVolume(), is(0L));
+        assertThat(bucket.getNumOrders(), is(0));
+
+        verify(eventsHelper, never()).appendTradeEvent(any(IOrder.class), anyBoolean(), anyLong(), anyLong());
+        verify(eventsHelper, never()).appendReduceEvent(anyLong(), anyLong(), anyLong());
+
+        verify(removeCallback, never()).accept(anyLong());
     }
 
     @Test
@@ -291,6 +311,17 @@ public class OrdersBucketNaiveTest {
         assertThat(orderIdCaptor.getAllValues().get(2), is(order2.getOrderId()));
     }
 
+    @Test
+    public void shouldUseBidderHoldPrice() {
+        // add orders
+        NaivePendingOrder order1 = createOrder(1L, 4L, 0L, OrderAction.ASK);
+        bucket.put(order1);
+
+        bucket.match(1L, BIDDER_HOLD_PRICE_1);
+
+        // bidder is taker (because maker order is ASK order), therefore BIDDER_HOLD_PRICE_1 should be provided
+        verify(eventsHelper, times(1)).appendTradeEvent(eq(order1), eq(false), eq(1L), eq(BIDDER_HOLD_PRICE_1));
+    }
 
     @Test
     public void shouldReturnOrdersList() {
@@ -329,12 +360,12 @@ public class OrdersBucketNaiveTest {
     public void equalAndHashCode() {
 
 
-        OrdersBucketNaive bucketA = new OrdersBucketNaive(123L, new OrderBookEventsHelper(new BufferWriter(new ExpandableArrayBuffer(), 0), false));
+        OrdersBucketNaive bucketA = new OrdersBucketNaive(123L, new OrderBookEventsHelper(new BufferWriter(new ExpandableArrayBuffer(), 0), false), removeCallback);
         bucketA.put(createOrder(1, 1, 0));
         bucketA.put(createOrder(3, 2, 1));
         bucketA.put(createOrder(4, 3, 2));
 
-        OrdersBucketNaive bucketB = new OrdersBucketNaive(123L, new OrderBookEventsHelper(new BufferWriter(new ExpandableArrayBuffer(), 0), false));
+        OrdersBucketNaive bucketB = new OrdersBucketNaive(123L, new OrderBookEventsHelper(new BufferWriter(new ExpandableArrayBuffer(), 0), false), removeCallback);
         bucketB.put(createOrder(1, 1, 0));
         bucketB.put(createOrder(3, 2, 1));
 
@@ -353,26 +384,33 @@ public class OrdersBucketNaiveTest {
         addNewOrder(4, 3, 2);
 
         String str = bucket.dumpToSingleLine();
-        assertThat(str, is("132800 : vol:3 num:3 : id1_L1_F0, id3_L2_F1, id4_L3_F2"));
+        assertThat(str, is("132000 : vol:3 num:3 : id1_L1_F0, id3_L2_F1, id4_L3_F2"));
     }
 
+
+    // -------------------------- utility methods ----------------------------------
 
     private NaivePendingOrder addNewOrder(long orderId, long size) {
         return addNewOrder(orderId, size, 0L);
     }
 
     private NaivePendingOrder addNewOrder(long orderId, long size, long filled) {
-        NaivePendingOrder order = createOrder(orderId, size, filled);
+        NaivePendingOrder order = createOrder(orderId, size, filled, OrderAction.BID);
         bucket.put(order);
         return order;
     }
 
     private NaivePendingOrder createOrder(long orderId, long size, long filled) {
-        return new NaivePendingOrder(orderId, BIDDER_HOLD_PRICE, size, filled, BIDDER_HOLD_PRICE, OrderAction.BID, 9289382L, 129839138288773L);
+        return createOrder(orderId, size, filled, OrderAction.BID);
     }
 
+    private NaivePendingOrder createOrder(long orderId, long size, long filled, OrderAction action) {
+        return new NaivePendingOrder(orderId, PRICE, size, filled, BIDDER_HOLD_PRICE, action, 9289382L, 129839138288773L);
+    }
+
+
     private long match(long volumeToCollect) {
-        return bucket.match(volumeToCollect, 0L, removeCallback);
+        return bucket.match(volumeToCollect, 0L);
     }
 
 }

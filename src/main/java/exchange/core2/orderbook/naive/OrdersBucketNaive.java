@@ -26,19 +26,20 @@ import java.util.stream.Collectors;
 public final class OrdersBucketNaive {
 
     private final long price;
-
     private final LinkedHashMap<Long, NaivePendingOrder> entries;
-
     private final OrderBookEventsHelper eventsHelper;
+    private final LongConsumer orderRemover;
 
     private long totalVolume;
 
-
-    public OrdersBucketNaive(final long price, final OrderBookEventsHelper eventsHelper) {
+    public OrdersBucketNaive(final long price,
+                             final OrderBookEventsHelper eventsHelper,
+                             final LongConsumer orderRemover) {
         this.price = price;
         this.entries = new LinkedHashMap<>();
         this.totalVolume = 0;
         this.eventsHelper = eventsHelper;
+        this.orderRemover = orderRemover;
     }
 
 
@@ -84,8 +85,7 @@ public final class OrdersBucketNaive {
      * @return - total matched volume, events, completed orders to remove
      */
     public long match(long volumeToCollect,
-                      final long activeReservedBidPrice,
-                      final LongConsumer orderRemover) {
+                      final long activeReservedBidPrice) {
 
         final Iterator<Map.Entry<Long, NaivePendingOrder>> iterator = entries.entrySet().iterator();
 

@@ -211,21 +211,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * Outgoing message offset
      */
 
-    // TODO add command sequence
-    int RESPONSE_OFFSET_HEADER_RETURN_CODE = 0;
-    int RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM = RESPONSE_OFFSET_HEADER_RETURN_CODE + BitUtil.SIZE_OF_SHORT;
-    int RESPONSE_OFFSET_HEADER_REDUCE_EVT = RESPONSE_OFFSET_HEADER_TRADES_EVT_NUM + BitUtil.SIZE_OF_INT;
-
-    // short response end (if REDUCE_EVT=0 and TRADES_EVT_NUM=0)
-    int RESPONSE_OFFSET_HEADER_END = RESPONSE_OFFSET_HEADER_REDUCE_EVT + BitUtil.SIZE_OF_BYTE;
-
-    // trade block header (if REDUCE_EVT!=0 or TRADES_EVT_NUM!=0) // TODO add necessary information to calculate BUDGET type
-    int RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID = RESPONSE_OFFSET_HEADER_END;
-    int RESPONSE_OFFSET_TBLK_TAKER_UID = RESPONSE_OFFSET_TBLK_TAKER_ORDER_ID + BitUtil.SIZE_OF_LONG;
-    int RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED = RESPONSE_OFFSET_TBLK_TAKER_UID + BitUtil.SIZE_OF_LONG;
-    int RESPONSE_OFFSET_TBLK_TAKER_ACTION = RESPONSE_OFFSET_TBLK_TAKER_ORDER_COMPLETED + BitUtil.SIZE_OF_BYTE;
-    int RESPONSE_OFFSET_TBLK_END = RESPONSE_OFFSET_TBLK_TAKER_ACTION + BitUtil.SIZE_OF_BYTE;
-
     // trade event
     int RESPONSE_OFFSET_TEVT_MAKER_ORDER_ID = 0;
     int RESPONSE_OFFSET_TEVT_MAKER_UID = RESPONSE_OFFSET_TEVT_MAKER_ORDER_ID + BitUtil.SIZE_OF_LONG;
@@ -242,24 +227,15 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     int RESPONSE_OFFSET_REVT_END = RESPONSE_OFFSET_REVT_REDUCED_VOL + BitUtil.SIZE_OF_LONG;
 
     // L2 data header // TODO add symbolId and time ()
-    int RESPONSE_OFFSET_L2_BLK_ASK_RECORDS = 0;
-    int RESPONSE_OFFSET_L2_BLK_BID_RECORDS = RESPONSE_OFFSET_L2_BLK_ASK_RECORDS + BitUtil.SIZE_OF_INT;
-    int RESPONSE_OFFSET_L2_BLK_END = RESPONSE_OFFSET_L2_BLK_BID_RECORDS + BitUtil.SIZE_OF_INT;
+    int RESPONSE_OFFSET_L2_RESULT = BitUtil.SIZE_OF_SHORT;
+    int RESPONSE_OFFSET_L2_BID_RECORDS = RESPONSE_OFFSET_L2_RESULT + BitUtil.SIZE_OF_INT;
+    int RESPONSE_OFFSET_L2_ASK_RECORDS = RESPONSE_OFFSET_L2_BID_RECORDS + BitUtil.SIZE_OF_INT;
+
     // L2 data record
     int RESPONSE_OFFSET_L2_RECORD_PRICE = 0;
     int RESPONSE_OFFSET_L2_RECORD_VOLUME = RESPONSE_OFFSET_L2_RECORD_PRICE + BitUtil.SIZE_OF_LONG;
-    int RESPONSE_OFFSET_L2_RECORD_NUM = RESPONSE_OFFSET_L2_RECORD_VOLUME + BitUtil.SIZE_OF_LONG;
-    int RESPONSE_OFFSET_L2_RECORD_END = RESPONSE_OFFSET_L2_RECORD_NUM + BitUtil.SIZE_OF_INT;
-
-
-    static int getTradeEventOffset(final int tradeEventsNum) {
-        return RESPONSE_OFFSET_TBLK_END + RESPONSE_OFFSET_TEVT_END * tradeEventsNum;
-    }
-
-    static int getL2RecordOffset(final int position) {
-        return RESPONSE_OFFSET_L2_BLK_END + RESPONSE_OFFSET_L2_RECORD_END * position;
-    }
-
+    int RESPONSE_OFFSET_L2_RECORD_ORDERS = RESPONSE_OFFSET_L2_RECORD_VOLUME + BitUtil.SIZE_OF_LONG;
+    int RESPONSE_OFFSET_L2_RECORD_END = RESPONSE_OFFSET_L2_RECORD_ORDERS + BitUtil.SIZE_OF_INT;
 
     /*
      * Order types
@@ -274,27 +250,5 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     // Fill or Kill - execute immediately completely or not at all
     byte ORDER_TYPE_FOK = 3; // with price cap
     byte ORDER_TYPE_FOK_BUDGET = 4; // total amount cap
-
-
-    /*
-     * Matcher Event types
-     */
-
-    // After cancel/reduce order - risk engine should unlock deposit accordingly
-    byte MATCHER_EVENT_REDUCE = 0;
-
-    // Trade event
-    // Can be triggered by place ORDER or for MOVE order command.
-    byte MATCHER_EVENT_TRADE = 1;
-
-    // Reject event
-    // Can happen only when MARKET order has to be rejected by Matcher Engine due lack of liquidity
-    // That basically means no ASK (or BID) orders left in the order book for any price.
-    // Before being rejected active order can be partially filled.
-    byte MATCHER_EVENT_REJECT = 2;
-
-    // Custom binary data attached
-    byte MATCHER_EVENT_BINARY_EVENT = 3;
-
 
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package exchange.core2.orderbook.events;
+package exchange.core2.orderbook.api;
 
 import java.util.List;
 import java.util.Objects;

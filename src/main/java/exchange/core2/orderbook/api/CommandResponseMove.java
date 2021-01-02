@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-package exchange.core2.orderbook.events;
+package exchange.core2.orderbook.api;
 
 import exchange.core2.orderbook.OrderAction;
 
 import java.util.List;
 
-public final class CommandResponseCancel extends CommandResponse {
+public final class CommandResponseMove extends CommandResponse {
 
-    public CommandResponseCancel(final short resultCode,
-                                 final long uid,
-                                 final long orderId,
-                                 final OrderAction takerAction,
-                                 final boolean orderCompleted,
-                                 final List<TradeEvent> trades,
-                                 final ReduceEvent reduceEvent) {
+    public CommandResponseMove(final short resultCode,
+                               final long uid,
+                               final long orderId,
+                               final OrderAction takerAction,
+                               final boolean orderCompleted,
+                               final Long remainingSize,
+                               final List<TradeEvent> trades,
+                               final ReduceEvent reduceEvent) {
 
-        super(resultCode, uid, orderId, takerAction, orderCompleted, null, trades, reduceEvent);
+        super(resultCode, uid, orderId, takerAction, orderCompleted, remainingSize, trades, reduceEvent);
     }
+
 }

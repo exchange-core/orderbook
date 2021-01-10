@@ -81,7 +81,8 @@ public final class OrdersBucketNaive {
      * Collect a list of matching orders starting from eldest records
      * Completely matching orders will be removed, partially matched order kept in the bucked.
      *
-     * @param volumeToCollect - volume to collect
+     * @param volumeToCollect        - volume to collect
+     * @param activeReservedBidPrice - active reserved price (required for risk release, provided with trade event)
      * @return - total matched volume, events, completed orders to remove
      */
     public long match(long volumeToCollect,

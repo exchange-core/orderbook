@@ -32,4 +32,17 @@ public final class CommandResponseCancel extends CommandResponse {
 
         super(resultCode, uid, orderId, takerAction, orderCompleted, null, trades, reduceEvent);
     }
+
+    @Override
+    public String toString() {
+        return "CommandResponseCancel{" +
+                "uid=" + getUid() +
+                ", orderId=" + getOrderId() +
+                ", takerAction=" + getTakerAction() +
+                ", orderCompleted=" + isOrderCompleted() +
+                ", remainingSize=" + getRemainingSizeOpt() +
+                ", trades=" + getTrades() +
+                ", reduceEvent=" + getReduceEventOpt() +
+                '}';
+    }
 }

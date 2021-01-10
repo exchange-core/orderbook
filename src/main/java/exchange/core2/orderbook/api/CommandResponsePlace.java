@@ -43,4 +43,17 @@ public final class CommandResponsePlace extends CommandResponse {
         return userCookie;
     }
 
+    @Override
+    public String toString() {
+        return "CommandResponsePlace{" +
+                "uid=" + getUid() +
+                ", orderId=" + getOrderId() +
+                ", takerAction=" + getTakerAction() +
+                ", orderCompleted=" + isOrderCompleted() +
+                ", userCookie=" + userCookie +
+                ", remainingSize=" + getRemainingSizeOpt() +
+                ", trades=" + getTrades() +
+                ", reduceEvent=" + getReduceEventOpt() +
+                '}';
+    }
 }

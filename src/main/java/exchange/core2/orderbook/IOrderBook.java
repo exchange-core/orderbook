@@ -35,6 +35,10 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * <p>
      * Rejection chain attached in case of error (to simplify risk handling)
      * <p>
+     *
+     * @param timestamp - timestamp to keep inside new order
+     * @param buffer    - buffer with arguments
+     * @param offset    - arguments base offset int the buffer
      */
     void newOrder(DirectBuffer buffer, int offset, long timestamp);
 
@@ -43,6 +47,9 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * <p>
      * fills cmd.action  with original original order action
      * <p>
+     *
+     * @param buffer - buffer with arguments
+     * @param offset - arguments base offset int the buffer
      */
     void cancelOrder(DirectBuffer buffer, int offset);
 
@@ -51,6 +58,9 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * <p>
      * fills cmd.action  with original  order action
      * <p>
+     *
+     * @param buffer - buffer with arguments
+     * @param offset - arguments base offset int the buffer
      */
     void reduceOrder(DirectBuffer buffer, int offset);
 
@@ -60,12 +70,24 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      * newPrice - new price (if 0 or same - order will not moved)
      * fills cmd.action  with original original order action
      * <p>
+     *
+     * @param buffer - buffer with arguments
+     * @param offset - arguments base offset int the buffer
      */
     void moveOrder(DirectBuffer buffer, int offset);
 
-
+    /**
+     * @param buffer - buffer with arguments
+     * @param offset - arguments base offset int the buffer
+     */
     void sendL2Snapshot(DirectBuffer buffer, int offset);
 
+    /**
+     * get order by id
+     *
+     * @param orderId order id
+     * @return order or null of order not found
+     */
     IOrder getOrderById(long orderId);
 
     /**
@@ -85,7 +107,9 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
 
     Stream<? extends IOrder> bidOrdersStream(boolean sorted);
 
-    // testing only - validateInternalState without changing state
+    /**
+     * testing only - validateInternalState without changing state
+     */
     void verifyInternalState();
 
     /**
@@ -120,34 +144,6 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
         return h;
     }
 
-    /**
-     * Obtain current L2 Market Data snapshot
-     *
-     * @param size max size for each part (ask, bid)
-     * @return L2 Market Data snapshot
-     */
-    default L2MarketData getL2MarketDataSnapshot(final int size) {
-        final int asksSize = getTotalAskBuckets(size);
-        final int bidsSize = getTotalBidBuckets(size);
-        final L2MarketData data = new L2MarketData(asksSize, bidsSize);
-        fillAsks(asksSize, data);
-        fillBids(bidsSize, data);
-        return data;
-    }
-
-    default L2MarketData getL2MarketDataSnapshot() {
-        return getL2MarketDataSnapshot(Integer.MAX_VALUE);
-    }
-
-    void fillAsks(int size, L2MarketData data);
-
-    void fillBids(int size, L2MarketData data);
-
-    int getTotalAskBuckets(int limit);
-
-    int getTotalBidBuckets(int limit);
-
-
     /*
      * Order book command codes
      */
@@ -169,6 +165,8 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
     short RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT = 6;
     short RESULT_UNSUPPORTED_ORDER_TYPE = 7;
     short RESULT_INCORRECT_L2_SIZE_LIMIT = 8;
+
+    short RESULT_UNKNOWN_SYMBOL = 9;
 
     short RESULT_OFFSET_REDUCE_EVT_FLAG = 1 << 14;
     short RESULT_OFFSET_TAKER_ACTION_BID_FLAG = 1 << 13;

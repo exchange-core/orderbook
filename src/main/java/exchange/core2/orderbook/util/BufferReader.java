@@ -60,6 +60,10 @@ public class BufferReader {
         return size;
     }
 
+    public int getRemainingSize() {
+        return size - (readPosition - initialPosition);
+    }
+
     public byte readByte() {
         final byte b = buffer.getByte(readPosition);
         readPosition += BitUtil.SIZE_OF_BYTE;

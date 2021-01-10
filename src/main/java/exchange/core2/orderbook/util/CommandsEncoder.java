@@ -16,7 +16,9 @@
 
 package exchange.core2.orderbook.util;
 
+import exchange.core2.orderbook.IOrderBook;
 import exchange.core2.orderbook.OrderAction;
+import org.agrona.BitUtil;
 import org.agrona.ExpandableDirectByteBuffer;
 import org.agrona.MutableDirectBuffer;
 
@@ -38,16 +40,16 @@ public final class CommandsEncoder {
         return buf;
     }
 
-    public static void placeOrder(final MutableDirectBuffer buf,
-                                  final int offset,
-                                  final byte type,
-                                  final long orderId,
-                                  final long uid,
-                                  final long price,
-                                  final long reservedBidPrice,
-                                  final long size,
-                                  final OrderAction action,
-                                  final int userCookie) {
+    public static int placeOrder(final MutableDirectBuffer buf,
+                                 final int offset,
+                                 final byte type,
+                                 final long orderId,
+                                 final long uid,
+                                 final long price,
+                                 final long reservedBidPrice,
+                                 final long size,
+                                 final OrderAction action,
+                                 final int userCookie) {
 
         buf.putLong(offset + PLACE_OFFSET_UID, uid);
         buf.putLong(offset + PLACE_OFFSET_ORDER_ID, orderId);
@@ -57,8 +59,8 @@ public final class CommandsEncoder {
         buf.putInt(offset + PLACE_OFFSET_USER_COOKIE, userCookie);
         buf.putByte(offset + PLACE_OFFSET_ACTION, action.getCode());
         buf.putByte(offset + PLACE_OFFSET_TYPE, type);
+        return IOrderBook.PLACE_OFFSET_END;
     }
-
 
     public static MutableDirectBuffer cancel(final long orderId,
                                              final long uid) {
@@ -68,13 +70,14 @@ public final class CommandsEncoder {
         return buf;
     }
 
-    public static void cancel(final MutableDirectBuffer buf,
-                              final int offset,
-                              final long orderId,
-                              final long uid) {
+    public static int cancel(final MutableDirectBuffer buf,
+                             final int offset,
+                             final long orderId,
+                             final long uid) {
 
-        buf.putLong(offset + PLACE_OFFSET_UID, uid);
-        buf.putLong(offset + PLACE_OFFSET_ORDER_ID, orderId);
+        buf.putLong(offset + CANCEL_OFFSET_UID, uid);
+        buf.putLong(offset + CANCEL_OFFSET_ORDER_ID, orderId);
+        return CANCEL_OFFSET_END;
     }
 
 
@@ -87,15 +90,16 @@ public final class CommandsEncoder {
         return buf;
     }
 
-    public static void reduce(final MutableDirectBuffer buf,
-                              final int offset,
-                              final long orderId,
-                              final long uid,
-                              final long size) {
+    public static int reduce(final MutableDirectBuffer buf,
+                             final int offset,
+                             final long orderId,
+                             final long uid,
+                             final long size) {
 
         buf.putLong(offset + REDUCE_OFFSET_UID, uid);
         buf.putLong(offset + REDUCE_OFFSET_ORDER_ID, orderId);
         buf.putLong(offset + REDUCE_OFFSET_SIZE, size);
+        return REDUCE_OFFSET_END;
     }
 
 
@@ -108,15 +112,16 @@ public final class CommandsEncoder {
         return buf;
     }
 
-    public static void move(final MutableDirectBuffer buf,
-                            final int offset,
-                            final long orderId,
-                            final long uid,
-                            final long price) {
+    public static int move(final MutableDirectBuffer buf,
+                           final int offset,
+                           final long orderId,
+                           final long uid,
+                           final long price) {
 
         buf.putLong(offset + MOVE_OFFSET_UID, uid);
         buf.putLong(offset + MOVE_OFFSET_ORDER_ID, orderId);
         buf.putLong(offset + MOVE_OFFSET_PRICE, price);
+        return MOVE_OFFSET_END;
     }
 
 
@@ -127,11 +132,12 @@ public final class CommandsEncoder {
         return buf;
     }
 
-    public static void L2DataQuery(final MutableDirectBuffer buf,
-                                   final int offset,
-                                   final int limit) {
+    public static int L2DataQuery(final MutableDirectBuffer buf,
+                                  final int offset,
+                                  final int limit) {
 
         buf.putInt(offset, limit);
+        return BitUtil.SIZE_OF_INT;
     }
 
 }

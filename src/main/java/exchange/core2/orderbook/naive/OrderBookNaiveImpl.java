@@ -588,54 +588,6 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
     }
 
     @Override
-    public void fillAsks(final int size, L2MarketData data) {
-        if (size == 0) {
-            data.askSize = 0;
-            return;
-        }
-
-        int i = 0;
-        for (OrdersBucketNaive bucket : askBuckets.values()) {
-            data.askPrices[i] = bucket.getPrice();
-            data.askVolumes[i] = bucket.getTotalVolume();
-            data.askOrders[i] = bucket.getNumOrders();
-            if (++i == size) {
-                break;
-            }
-        }
-        data.askSize = i;
-    }
-
-    @Override
-    public void fillBids(final int size, L2MarketData data) {
-        if (size == 0) {
-            data.bidSize = 0;
-            return;
-        }
-
-        int i = 0;
-        for (OrdersBucketNaive bucket : bidBuckets.values()) {
-            data.bidPrices[i] = bucket.getPrice();
-            data.bidVolumes[i] = bucket.getTotalVolume();
-            data.bidOrders[i] = bucket.getNumOrders();
-            if (++i == size) {
-                break;
-            }
-        }
-        data.bidSize = i;
-    }
-
-    @Override
-    public int getTotalAskBuckets(final int limit) {
-        return Math.min(limit, askBuckets.size());
-    }
-
-    @Override
-    public int getTotalBidBuckets(final int limit) {
-        return Math.min(limit, bidBuckets.size());
-    }
-
-    @Override
     public void verifyInternalState() {
         askBuckets.values().forEach(OrdersBucketNaive::validate);
         bidBuckets.values().forEach(OrdersBucketNaive::validate);

@@ -39,11 +39,12 @@ public final class ResponseDecoder {
         return readResult(new BufferReader(buf, responseMsgSize, 0));
     }
 
+    // TODO attach custom commands handler (risk/binarycmd/query)
     public static OrderBookResponse readResult(final BufferReader buf) {
 
 //        log.debug("Parsing response:\n{}", buf.prettyHexDump());
 
-        final int msgSize = buf.getSize();
+        final int msgSize = buf.getRemainingSize();
 
         final byte commandType = buf.readByte();
 
@@ -92,6 +93,10 @@ public final class ResponseDecoder {
             if (reduceOffsetStart != tradeEventsBlockStartOffset) {
                 final int tradeEventsBlockLength = reduceOffsetStart - tradeEventsBlockStartOffset;
                 final int numberOfBlock = tradeEventsBlockLength / RESPONSE_OFFSET_TEVT_END;
+                if (tradeEventsBlockLength % RESPONSE_OFFSET_TEVT_END != 0) {
+                    throw new IllegalStateException("Incorrect trade events block length: " + tradeEventsBlockLength);
+                }
+
                 tradeEvents = new ArrayList<>(numberOfBlock);
                 for (int offset = tradeEventsBlockStartOffset; offset < reduceOffsetStart; offset += RESPONSE_OFFSET_TEVT_END) {
                     tradeEvents.add(readTradeEvent(buf, offset));

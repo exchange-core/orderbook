@@ -34,4 +34,17 @@ public final class CommandResponseMove extends CommandResponse {
         super(resultCode, uid, orderId, takerAction, orderCompleted, remainingSize, trades, reduceEvent);
     }
 
+    @Override
+    public String toString() {
+        return "CommandResponseMove{" +
+                "uid=" + getUid() +
+                ", orderId=" + getOrderId() +
+                ", takerAction=" + getTakerAction() +
+                ", orderCompleted=" + isOrderCompleted() +
+                ", remainingSize=" + getRemainingSizeOpt() +
+                ", trades=" + getTrades() +
+                ", reduceEvent=" + getReduceEventOpt() +
+                '}';
+    }
+
 }

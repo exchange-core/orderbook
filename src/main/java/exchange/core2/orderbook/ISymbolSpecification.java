@@ -21,5 +21,7 @@ public interface ISymbolSpecification extends StateHash {
 
     boolean isExchangeType();
 
+    int getSymbolId();
+
 }
 

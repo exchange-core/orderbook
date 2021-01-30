@@ -88,6 +88,12 @@ public class BufferReader {
         return w;
     }
 
+    public void readBytesToWriter(final BufferWriter bufferWriter, final int length) {
+        buffer.getBytes(readPosition, bufferWriter.getBuffer(), bufferWriter.getWriterPosition(), length);
+        bufferWriter.skipBytes(length);
+        readPosition += length;
+    }
+
     public byte getByte(final int offset) {
         final byte b = buffer.getByte(initialPosition + offset);
         return b;
@@ -106,6 +112,10 @@ public class BufferReader {
     public long getLong(final int offset) {
         final long w = buffer.getLong(initialPosition + offset);
         return w;
+    }
+
+    public void skipBytes(final int length) {
+        readPosition += length;
     }
 
     public String prettyHexDump() {

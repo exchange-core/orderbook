@@ -26,6 +26,32 @@ import static exchange.core2.orderbook.IOrderBook.*;
 
 public final class CommandsEncoder {
 
+    public static void placeOrder(final BufferWriter bufferWriter,
+                                  final byte type,
+                                  final long orderId,
+                                  final long uid,
+                                  final long price,
+                                  final long reservedBidPrice,
+                                  final long size,
+                                  final OrderAction action,
+                                  final int userCookie) {
+
+        final int bytesWritten = placeOrder(
+                bufferWriter.getBuffer(),
+                bufferWriter.getWriterPosition(),
+                type,
+                orderId,
+                uid,
+                price,
+                reservedBidPrice,
+                size,
+                action,
+                userCookie);
+
+        bufferWriter.skipBytes(bytesWritten);
+    }
+
+
     public static MutableDirectBuffer placeOrder(final byte type,
                                                  final long orderId,
                                                  final long uid,
@@ -62,6 +88,19 @@ public final class CommandsEncoder {
         return IOrderBook.PLACE_OFFSET_END;
     }
 
+    public static void cancel(final BufferWriter bufferWriter,
+                              final long orderId,
+                              final long uid) {
+
+        final int bytesWritten = cancel(
+                bufferWriter.getBuffer(),
+                bufferWriter.getWriterPosition(),
+                orderId,
+                uid);
+
+        bufferWriter.skipBytes(bytesWritten);
+    }
+
     public static MutableDirectBuffer cancel(final long orderId,
                                              final long uid) {
 
@@ -78,6 +117,21 @@ public final class CommandsEncoder {
         buf.putLong(offset + CANCEL_OFFSET_UID, uid);
         buf.putLong(offset + CANCEL_OFFSET_ORDER_ID, orderId);
         return CANCEL_OFFSET_END;
+    }
+
+
+    public static void reduce(final BufferWriter bufferWriter,
+                              final long orderId,
+                              final long uid,
+                              final long size) {
+
+        final int bytesWritten = reduce(bufferWriter.getBuffer(),
+                bufferWriter.getWriterPosition(),
+                orderId,
+                uid,
+                size);
+
+        bufferWriter.skipBytes(bytesWritten);
     }
 
 
@@ -103,6 +157,21 @@ public final class CommandsEncoder {
     }
 
 
+    public static void move(final BufferWriter bufferWriter,
+                            final long orderId,
+                            final long uid,
+                            final long price) {
+
+        final int bytesWritten = move(
+                bufferWriter.getBuffer(),
+                bufferWriter.getWriterPosition(),
+                orderId,
+                uid,
+                price);
+
+        bufferWriter.skipBytes(bytesWritten);
+    }
+
     public static MutableDirectBuffer move(final long orderId,
                                            final long uid,
                                            final long price) {
@@ -124,6 +193,17 @@ public final class CommandsEncoder {
         return MOVE_OFFSET_END;
     }
 
+
+    public static void L2DataQuery(final BufferWriter bufferWriter,
+                                   final int limit) {
+
+        final int bytesWritten = L2DataQuery(
+                bufferWriter.getBuffer(),
+                bufferWriter.getWriterPosition(),
+                limit);
+
+        bufferWriter.skipBytes(bytesWritten);
+    }
 
     public static MutableDirectBuffer L2DataQuery(final int limit) {
 

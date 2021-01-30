@@ -29,10 +29,13 @@ import java.util.List;
 import static exchange.core2.orderbook.IOrderBook.*;
 import static org.agrona.BitUtil.*;
 
+
+// TODO implement events handler (high performance version of this class)
 public final class ResponseDecoder {
 
     private static final Logger log = LoggerFactory.getLogger(ResponseDecoder.class);
 
+    // TODO offset argument
     public static OrderBookResponse readResult(final MutableDirectBuffer buf,
                                                final int responseMsgSize) {
 

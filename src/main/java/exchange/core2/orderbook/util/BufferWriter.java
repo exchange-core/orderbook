@@ -20,8 +20,6 @@ import org.agrona.BitUtil;
 import org.agrona.MutableDirectBuffer;
 import org.agrona.PrintBufferUtil;
 
-import static exchange.core2.orderbook.IOrderBook.RESPONSE_OFFSET_TEVT_END;
-
 public class BufferWriter {
 
     private final MutableDirectBuffer buffer;
@@ -89,6 +87,30 @@ public class BufferWriter {
 
     public void overwriteLong(final int offset, final long w) {
         buffer.putLong(offset, w);
+    }
+
+    public void appendBytesFromReader(final BufferReader reader, final int length) {
+        reader.getBuffer().getBytes(reader.getReadPosition(), buffer, writerPosition, length);
+        writerPosition += length;
+        reader.skipBytes(length);
+    }
+
+    public byte[] getBytes() {
+        final int length = writerPosition - initialPosition;
+        final byte[] array = new byte[length];
+        buffer.getBytes(initialPosition, array);
+        return array;
+    }
+
+    /**
+     * Zero copy conversion to reader.
+     * Writer can not be used anymore
+     *
+     * @return buffer reader
+     */
+    public BufferReader toReader() {
+        final int size = writerPosition - initialPosition;
+        return new BufferReader(buffer, size, initialPosition);
     }
 
     public String prettyHexDump() {

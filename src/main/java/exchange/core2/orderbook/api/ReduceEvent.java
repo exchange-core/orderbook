@@ -20,21 +20,21 @@ import java.util.Objects;
 
 public class ReduceEvent {
 
-    private final long reducedVolume;
+    private final long reducedSize;
     private final long price;
     private final long reservedBidPrice;
 
-    public ReduceEvent(long reducedVolume,
+    public ReduceEvent(long reducedSize,
                        long price,
                        long reservedBidPrice) {
 
-        this.reducedVolume = reducedVolume;
+        this.reducedSize = reducedSize;
         this.price = price;
         this.reservedBidPrice = reservedBidPrice;
     }
 
-    public long getReducedVolume() {
-        return reducedVolume;
+    public long getReducedSize() {
+        return reducedSize;
     }
 
     public long getPrice() {
@@ -48,7 +48,7 @@ public class ReduceEvent {
     @Override
     public String toString() {
         return "ReduceEvent{" +
-                "reducedVolume=" + reducedVolume +
+                "reducedSize=" + reducedSize +
                 ", price=" + price +
                 ", reservedBidPrice=" + reservedBidPrice +
                 '}';
@@ -59,13 +59,13 @@ public class ReduceEvent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ReduceEvent that = (ReduceEvent) o;
-        return reducedVolume == that.reducedVolume &&
+        return reducedSize == that.reducedSize &&
                 price == that.price &&
                 reservedBidPrice == that.reservedBidPrice;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(reducedVolume, price, reservedBidPrice);
+        return Objects.hash(reducedSize, price, reservedBidPrice);
     }
 }

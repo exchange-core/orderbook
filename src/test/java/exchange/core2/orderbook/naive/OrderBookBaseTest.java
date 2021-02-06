@@ -947,8 +947,8 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         reduceEventOpt.ifPresent(reduceEvent -> {
             assertThat(reduceEvent.getPrice(), is(price));
             assertThat(reduceEvent.getReservedBidPrice(), is(action == BID ? reservedBidPrice : 0L));
-            assertTrue(reduceEvent.getReducedVolume() > 0);
-            totalVolumeInEvents.addAndGet(reduceEvent.getReducedVolume());
+            assertTrue(reduceEvent.getReducedSize() > 0);
+            totalVolumeInEvents.addAndGet(reduceEvent.getReducedSize());
         });
 
         trades.forEach(trade -> {
@@ -956,8 +956,8 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
             assertThat(trade.getMakerUid(), IsNot.not(0L));
             assertTrue(trade.getReservedBidPrice() > 0);
             assertTrue(trade.getTradePrice() > 0);
-            assertTrue(trade.getTradeVolume() > 0);
-            totalVolumeInEvents.addAndGet(trade.getTradeVolume());
+            assertTrue(trade.getTradeSize() > 0);
+            totalVolumeInEvents.addAndGet(trade.getTradeSize());
         });
 
         if (response.isSuccessful()) {
@@ -1091,7 +1091,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
                                          final OrderAction action,
                                          final long price,
                                          final long reservedBidPrice,
-                                         final long reducedVolume,
+                                         final long reducedSize,
                                          final boolean completed) {
 
         assertThat(res.getUid(), is(uid));
@@ -1106,7 +1106,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
         assertThat(reduceEvent.getPrice(), is(price));
         assertThat(reduceEvent.getReservedBidPrice(), is(reservedBidPrice));
-        assertThat(reduceEvent.getReducedVolume(), is(reducedVolume));
+        assertThat(reduceEvent.getReducedSize(), is(reducedSize));
     }
 
     private void verifyTradeEvents(final CommandResponse res,

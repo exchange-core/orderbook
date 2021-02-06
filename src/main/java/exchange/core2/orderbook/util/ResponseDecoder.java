@@ -30,7 +30,6 @@ import static exchange.core2.orderbook.IOrderBook.*;
 import static org.agrona.BitUtil.*;
 
 
-// TODO implement events handler (high performance version of this class)
 public final class ResponseDecoder {
 
     private static final Logger log = LoggerFactory.getLogger(ResponseDecoder.class);
@@ -95,12 +94,12 @@ public final class ResponseDecoder {
 
             if (reduceOffsetStart != tradeEventsBlockStartOffset) {
                 final int tradeEventsBlockLength = reduceOffsetStart - tradeEventsBlockStartOffset;
-                final int numberOfBlock = tradeEventsBlockLength / RESPONSE_OFFSET_TEVT_END;
+                final int numberOfBlocks = tradeEventsBlockLength / RESPONSE_OFFSET_TEVT_END;
                 if (tradeEventsBlockLength % RESPONSE_OFFSET_TEVT_END != 0) {
                     throw new IllegalStateException("Incorrect trade events block length: " + tradeEventsBlockLength);
                 }
 
-                tradeEvents = new ArrayList<>(numberOfBlock);
+                tradeEvents = new ArrayList<>(numberOfBlocks);
                 for (int offset = tradeEventsBlockStartOffset; offset < reduceOffsetStart; offset += RESPONSE_OFFSET_TEVT_END) {
                     tradeEvents.add(readTradeEvent(buf, offset));
                 }
@@ -199,17 +198,17 @@ public final class ResponseDecoder {
         final long makerUid = buf.getLong(offset + RESPONSE_OFFSET_TEVT_MAKER_UID);
         final long price = buf.getLong(offset + RESPONSE_OFFSET_TEVT_PRICE);
         final long reservedBidPrice = buf.getLong(offset + RESPONSE_OFFSET_TEVT_RESERV_BID_PRICE);
-        final long tradeVolume = buf.getLong(offset + RESPONSE_OFFSET_TEVT_TRADE_VOL);
-        final boolean takerCompleted = buf.getByte(offset + RESPONSE_OFFSET_TEVT_MAKER_ORDER_COMPLETED) != 0;
+        final long tradeSize = buf.getLong(offset + RESPONSE_OFFSET_TEVT_TRADE_SIZE);
+        final boolean makerCompleted = buf.getByte(offset + RESPONSE_OFFSET_TEVT_MAKER_ORDER_COMPLETED) != 0;
 
-        return new TradeEvent(makerOrderId, makerUid, price, reservedBidPrice, tradeVolume, takerCompleted);
+        return new TradeEvent(makerOrderId, makerUid, price, reservedBidPrice, tradeSize, makerCompleted);
     }
 
     private static ReduceEvent readReduceEvent(final BufferReader buf, final int offset) {
 
         final long price = buf.getLong(offset + RESPONSE_OFFSET_REVT_PRICE);
         final long reservedBidPrice = buf.getLong(offset + RESPONSE_OFFSET_REVT_RESERV_BID_PRICE);
-        final long reducedVolume = buf.getLong(offset + RESPONSE_OFFSET_REVT_REDUCED_VOL);
+        final long reducedVolume = buf.getLong(offset + RESPONSE_OFFSET_REVT_REDUCED_SIZE);
 
         return new ReduceEvent(reducedVolume, price, reservedBidPrice);
     }

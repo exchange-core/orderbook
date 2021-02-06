@@ -544,11 +544,12 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
 
     @Override
     public void sendL2Snapshot(final DirectBuffer buffer, final int offset) {
-        final int sizeOffer = buffer.getInt(offset);
-        final int maxSize = sizeOffer > 0 ? sizeOffer : Integer.MAX_VALUE;
+
+        final int limit = buffer.getInt(offset);
 
         resultsBuffer.appendByte(IOrderBook.QUERY_ORDER_BOOK);
-        if (sizeOffer <= 0) {
+        if (limit <= 0) {
+            // 0 or negative size is not allowed
             resultsBuffer.appendShort(RESULT_INCORRECT_L2_SIZE_LIMIT);
             return;
         }
@@ -556,7 +557,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         int asks = 0;
         for (final OrdersBucketNaive bucket : askBuckets.values()) {
             eventsHelper.appendL2Record(bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
-            if (++asks == maxSize) {
+            if (++asks == limit) {
                 break;
             }
         }
@@ -564,7 +565,7 @@ public final class OrderBookNaiveImpl<S extends ISymbolSpecification> implements
         int bids = 0;
         for (final OrdersBucketNaive bucket : bidBuckets.values()) {
             eventsHelper.appendL2Record(bucket.getPrice(), bucket.getTotalVolume(), bucket.getNumOrders());
-            if (++bids == maxSize) {
+            if (++bids == limit) {
                 break;
             }
         }

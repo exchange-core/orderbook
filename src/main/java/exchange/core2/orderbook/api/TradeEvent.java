@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package exchange.core2.orderbook.events;
+package exchange.core2.orderbook.api;
 
 import java.util.Objects;
 
@@ -24,21 +24,21 @@ public final class TradeEvent {
     private final long makerUid;
     private final long tradePrice;
     private final long reservedBidPrice;
-    private final long tradeVolume;
+    private final long tradeSize;
     private final boolean makerOrderCompleted;
 
     public TradeEvent(long makerOrderId,
                       long makerUid,
                       long tradePrice,
                       long reservedBidPrice,
-                      long tradeVolume,
+                      long tradeSize,
                       boolean makerOrderCompleted) {
 
         this.makerOrderId = makerOrderId;
         this.makerUid = makerUid;
         this.tradePrice = tradePrice;
         this.reservedBidPrice = reservedBidPrice;
-        this.tradeVolume = tradeVolume;
+        this.tradeSize = tradeSize;
         this.makerOrderCompleted = makerOrderCompleted;
     }
 
@@ -58,8 +58,8 @@ public final class TradeEvent {
         return reservedBidPrice;
     }
 
-    public long getTradeVolume() {
-        return tradeVolume;
+    public long getTradeSize() {
+        return tradeSize;
     }
 
     public boolean isMakerOrderCompleted() {
@@ -73,7 +73,7 @@ public final class TradeEvent {
                 ", makerUid=" + makerUid +
                 ", tradePrice=" + tradePrice +
                 ", reservedBidPrice=" + reservedBidPrice +
-                ", tradeVolume=" + tradeVolume +
+                ", tradeSize=" + tradeSize +
                 ", makerOrderCompleted=" + makerOrderCompleted +
                 '}';
     }
@@ -87,12 +87,12 @@ public final class TradeEvent {
                 makerUid == that.makerUid &&
                 tradePrice == that.tradePrice &&
                 reservedBidPrice == that.reservedBidPrice &&
-                tradeVolume == that.tradeVolume &&
+                tradeSize == that.tradeSize &&
                 makerOrderCompleted == that.makerOrderCompleted;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(makerOrderId, makerUid, tradePrice, reservedBidPrice, tradeVolume, makerOrderCompleted);
+        return Objects.hash(makerOrderId, makerUid, tradePrice, reservedBidPrice, tradeSize, makerOrderCompleted);
     }
 }

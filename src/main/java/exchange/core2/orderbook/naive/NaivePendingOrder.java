@@ -24,7 +24,15 @@ import java.util.Objects;
 public final class NaivePendingOrder implements IOrder {
 
 
-    public NaivePendingOrder(long orderId, long price, long size, long filled, long reserveBidPrice, OrderAction action, long uid, long timestamp) {
+    public NaivePendingOrder(long orderId,
+                             long price,
+                             long size,
+                             long filled,
+                             long reserveBidPrice,
+                             OrderAction action,
+                             long uid,
+                             long timestamp) {
+
         this.orderId = orderId;
         this.price = price;
         this.size = size;
@@ -35,27 +43,31 @@ public final class NaivePendingOrder implements IOrder {
         this.timestamp = timestamp;
     }
 
-    final long orderId;
+    private final long orderId;
 
-    long price;
+    private long price;
 
-    long size;
+    private long size;
 
-    long filled;
+    private long filled;
 
     // new orders - reserved price for fast moves of GTC bid orders in exchange mode
-    final long reserveBidPrice;
+    private final long reserveBidPrice;
 
     // required for PLACE_ORDER only;
-    final OrderAction action;
+    private final OrderAction action;
 
-    final long uid;
+    private final long uid;
 
-    final long timestamp;
+    private final long timestamp;
 
     @Override
     public long getPrice() {
         return price;
+    }
+
+    public void setPrice(long price) {
+        this.price = price;
     }
 
     @Override
@@ -63,10 +75,23 @@ public final class NaivePendingOrder implements IOrder {
         return size;
     }
 
+    public void setSize(long size) {
+        this.size = size;
+    }
+
     @Override
     public long getFilled() {
         return filled;
     }
+
+    public void setFilled(long filled) {
+        this.filled = filled;
+    }
+
+    public long getUnmatchedSize() {
+        return size - filled;
+    }
+
 
     @Override
     public long getUid() {
@@ -95,9 +120,26 @@ public final class NaivePendingOrder implements IOrder {
 
     @Override
     public int stateHash() {
-        return Objects.hash(orderId, action, price, size, reserveBidPrice, filled,
-                //userCookie,
-                uid);
+        return Objects.hash(orderId, action, price, size, reserveBidPrice, filled, uid);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        NaivePendingOrder that = (NaivePendingOrder) o;
+        return orderId == that.orderId &&
+                price == that.price &&
+                size == that.size &&
+                filled == that.filled &&
+                reserveBidPrice == that.reserveBidPrice &&
+                uid == that.uid &&
+                action == that.action;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(orderId, price, size, filled, reserveBidPrice, action, uid);
     }
 
     @Override

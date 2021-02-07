@@ -15,11 +15,14 @@
  */
 package exchange.core2.orderbook.naive;
 
-import exchange.core2.orderbook.*;
-import exchange.core2.orderbook.events.CommandProcessingResponse;
-import exchange.core2.orderbook.events.ReduceEvent;
-import exchange.core2.orderbook.events.TradeEvent;
-import exchange.core2.orderbook.events.TradeEventsBlock;
+import exchange.core2.orderbook.IOrder;
+import exchange.core2.orderbook.IOrderBook;
+import exchange.core2.orderbook.ISymbolSpecification;
+import exchange.core2.orderbook.OrderAction;
+import exchange.core2.orderbook.api.*;
+import exchange.core2.orderbook.util.BufferWriter;
+import exchange.core2.orderbook.util.CommandsEncoder;
+import exchange.core2.orderbook.util.ResponseDecoder;
 import exchange.core2.tests.util.L2MarketDataHelper;
 import org.agrona.ExpandableDirectByteBuffer;
 import org.agrona.MutableDirectBuffer;
@@ -33,8 +36,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Consumer;
 
 import static exchange.core2.orderbook.IOrderBook.*;
 import static exchange.core2.orderbook.OrderAction.ASK;
@@ -61,12 +64,17 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
     private L2MarketDataHelper expectedState;
 
-    protected MutableDirectBuffer responseBuffer = new ExpandableDirectByteBuffer(256);
+    protected MutableDirectBuffer responseBuffer = new ExpandableDirectByteBuffer(1024);
 //    protected MutableDirectBuffer responseBuffer = new ExpandableArrayBuffer(256);
+
+    protected BufferWriter bufferWriter = new BufferWriter(responseBuffer, 0);
+
+    protected List<IOrder> gtcOrders = new ArrayList<>();
+
 
 //    protected CommandsEncoder commandsEncoder = new CommandsEncoder(commandsBuffer);
 
-    protected abstract IOrderBook<S> createNewOrderBook(MutableDirectBuffer resultsBuffer);
+    protected abstract IOrderBook<S> createNewOrderBook(BufferWriter bufferWriter);
 
 
     static final long INITIAL_PRICE = 81600L;
@@ -80,39 +88,41 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
     @Before
     public void before() {
-        orderBook = createNewOrderBook(responseBuffer);
+
+        orderBook = createNewOrderBook(bufferWriter);
         orderBook.verifyInternalState();
 
         placeOrder(ORDER_TYPE_GTC, -1L, UID_2, INITIAL_PRICE, 0L, 13L, ASK);
         cancel(-1L, UID_2);
 
-        placeOrder(ORDER_TYPE_GTC, 1L, UID_1, 81600L, 0L, 100L, ASK);
-        placeOrder(ORDER_TYPE_GTC, 2L, UID_1, 81599L, 0L, 50L, ASK);
-        placeOrder(ORDER_TYPE_GTC, 3L, UID_1, 81599L, 0L, 25L, ASK);
-        placeOrder(ORDER_TYPE_GTC, 8L, UID_1, 201000L, 0L, 28L, ASK);
-        placeOrder(ORDER_TYPE_GTC, 9L, UID_1, 201000L, 0L, 32L, ASK);
-        placeOrder(ORDER_TYPE_GTC, 10L, UID_1, 200954L, 0L, 10L, ASK);
+        gtcOrders.add(new NaivePendingOrder(1L, 81600L, 100L, 0, 0L, ASK, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(2L, 81599L, 50L, 0, 0L, ASK, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(3L, 81599L, 25L, 0, 0L, ASK, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(8L, 201000L, 28L, 0, 0L, ASK, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(9L, 201000L, 32L, 0, 0L, ASK, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(10L, 200954L, 10L, 0, 0L, ASK, UID_1, 1L));
 
-        placeOrder(ORDER_TYPE_GTC, 4L, UID_1, 81593L, 82001L, 40L, BID);
-        placeOrder(ORDER_TYPE_GTC, 5L, UID_1, 81590L, 82004L, 20L, BID);
-        placeOrder(ORDER_TYPE_GTC, 6L, UID_1, 81590L, 82020L, 1L, BID);
-        placeOrder(ORDER_TYPE_GTC, 7L, UID_1, 81200L, 82044L, 20L, BID);
-        placeOrder(ORDER_TYPE_GTC, 11L, UID_1, 10000L, 12000L, 12L, BID);
-        placeOrder(ORDER_TYPE_GTC, 12L, UID_1, 10000L, 12000L, 1L, BID);
-        placeOrder(ORDER_TYPE_GTC, 13L, UID_1, 9136L, 12000L, 2L, BID);
+        gtcOrders.add(new NaivePendingOrder(4L, 81593L, 40L, 0, 82001L, BID, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(5L, 81590L, 20L, 0, 82004L, BID, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(6L, 81590L, 1L, 0, 82020L, BID, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(7L, 81200L, 20L, 0, 82044L, BID, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(11L, 10000L, 12L, 0, 12000L, BID, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(12L, 10000L, 1L, 0, 12000L, BID, UID_1, 1L));
+        gtcOrders.add(new NaivePendingOrder(13L, 9136L, 2L, 0, 12000L, BID, UID_1, 1L));
+
+        gtcOrders.forEach(this::placeOrderGTC);
 
         expectedState = new L2MarketDataHelper(
-                new L2MarketData(
-                        new long[]{81599, 81600, 200954, 201000},
-                        new long[]{75, 100, 10, 60},
-                        new long[]{2, 1, 1, 2},
-                        new long[]{81593, 81590, 81200, 10000, 9136},
-                        new long[]{40, 21, 20, 13, 2},
-                        new long[]{1, 2, 1, 2, 1}
-                ));
 
-        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(25);
-        assertThat(expectedState.build(), is(snapshot));
+                new long[]{81599, 81600, 200954, 201000},
+                new long[]{75, 100, 10, 60},
+                new int[]{2, 1, 1, 2},
+
+                new long[]{81593, 81590, 81200, 10000, 9136},
+                new long[]{40, 21, 20, 13, 2},
+                new int[]{1, 2, 1, 2, 1});
+
+        verifyExpectedL2Data();
     }
 
 
@@ -127,27 +137,24 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
     protected void clearOrderBook() {
         orderBook.verifyInternalState();
-        L2MarketData snapshot = orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE);
+
+        //log.info(expectedState.dumpOrderBook());
 
         // match all asks
-        long askSum = Arrays.stream(snapshot.askVolumes).sum();
+        long askSum = queryL2Data().getAsks().stream().mapToLong(QueryResponseL2Data.L2Record::getVolume).sum();
         if (askSum > 0) {
             placeOrder(ORDER_TYPE_IOC, 100000000000L, -1, MAX_PRICE, MAX_PRICE, askSum, BID);
-
-//        log.debug("{}", orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE).dumpOrderBook());
-
             orderBook.verifyInternalState();
         }
 
         // match all bids
-        long bidSum = Arrays.stream(snapshot.bidVolumes).sum();
+        long bidSum = queryL2Data().getBids().stream().mapToLong(QueryResponseL2Data.L2Record::getVolume).sum();
         if (bidSum > 0) {
             placeOrder(ORDER_TYPE_IOC, 100000000001L, -2, 1, 0, bidSum, ASK);
         }
-//        log.debug("{}", orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE).dumpOrderBook());
 
-        assertThat(orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE).askSize, is(0));
-        assertThat(orderBook.getL2MarketDataSnapshot(Integer.MAX_VALUE).bidSize, is(0));
+        assertTrue(queryL2Data().getAsks().isEmpty());
+        assertTrue(queryL2Data().getBids().isEmpty());
 
         orderBook.verifyInternalState();
     }
@@ -160,28 +167,69 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
     // ------------------------ NO TRADES -----------------------
 
+    @Test
+    public void shouldReceiveL2Data() {
+        // verify full data
+        QueryResponseL2Data response = queryL2Data();
+        assertTrue(expectedState.checkL2Data(response));
+
+        // request BBO
+        QueryResponseL2Data response1 = queryL2Data(1, RESULT_SUCCESS);
+        assertThat(response1.getAsks(), is(response.getAsks().subList(0, 1)));
+        assertThat(response1.getBids(), is(response.getBids().subList(0, 1)));
+    }
+
+    @Test
+    public void shouldReturnErrorForIncorrectL2DataQuery() {
+        queryL2Data(0, RESULT_INCORRECT_L2_SIZE_LIMIT);
+        queryL2Data(-1, RESULT_INCORRECT_L2_SIZE_LIMIT);
+        queryL2Data(Integer.MIN_VALUE, RESULT_INCORRECT_L2_SIZE_LIMIT);
+    }
+
+    /**
+     * Just place few GTC orders
+     */
+    @Test
+    public void shouldPlaceGtcOrder() {
+
+        placeOrder(ORDER_TYPE_GTC, 93L, UID_1, 81598L, 0, 1L, ASK,
+                verifyRemainingSize(1L),
+                verifyOrderNotCompleted());
+
+        //log.debug("{}", dumpOrderBook(snapshot));
+    }
+
+
     /**
      * Just place few GTC orders
      */
     @Test
     public void shouldAddGtcOrders() {
 
-        placeOrder(ORDER_TYPE_GTC, 93L, UID_1, 81598L, 0, 1L, ASK);
+        placeOrder(ORDER_TYPE_GTC, 93L, UID_1, 81598L, 0, 1L, ASK,
+                verifyRemainingSize(1L),
+                verifyOrderNotCompleted());
         expectedState.insertAsk(0, 81598L, 1L);
 
-        placeOrder(ORDER_TYPE_GTC, 94L, UID_1, 81594, MAX_PRICE, 9_000_000_000L, BID);
+        placeOrder(ORDER_TYPE_GTC, 94L, UID_1, 81594, MAX_PRICE, 9_000_000_000L, BID,
+                verifyRemainingSize(9_000_000_000L),
+                verifyOrderNotCompleted());
         expectedState.insertBid(0, 81594L, 9_000_000_000L);
 
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
         orderBook.verifyInternalState();
 
-        placeOrder(ORDER_TYPE_GTC, 95L, UID_1, 130000L, 0L, 13_000_000_000L, ASK);
+        placeOrder(ORDER_TYPE_GTC, 95L, UID_1, 130000L, 0L, 13_000_000_000L, ASK,
+                verifyRemainingSize(13_000_000_000L),
+                verifyOrderNotCompleted());
         expectedState.insertAsk(3, 130000L, 13_000_000_000L);
 
-        placeOrder(ORDER_TYPE_GTC, 96L, UID_1, 1000L, MAX_PRICE, 4L, BID);
+        placeOrder(ORDER_TYPE_GTC, 96L, UID_1, 1000L, MAX_PRICE, 4L, BID,
+                verifyRemainingSize(4L),
+                verifyOrderNotCompleted());
         expectedState.insertBid(6, 1000L, 4L);
 
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
         orderBook.verifyInternalState();
 
         //log.debug("{}", dumpOrderBook(snapshot));
@@ -193,29 +241,55 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldIgnoredDuplicateOrder() {
 
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 1L, UID_1, 81600L, 0L, 100L, ASK);
+        CommandResponse res = placeOrder(ORDER_TYPE_GTC, 1L, UID_1, 81600L, 0L, 100L, ASK,
+                verifyEmptyRemainingSize(),
+                verifyOrderCompleted(),
+                verifyNoTradeEvents());
 
         // just confirm reduce event exists, rest of verifications are done automatically
-        Optional<TradeEventsBlock> tradeEventsBlockOpt = res.getTradeEventsBlock();
-        assertTrue(tradeEventsBlockOpt.isPresent());
-        TradeEventsBlock tradeEventsBlock = tradeEventsBlockOpt.get();
+        assertTrue(res.getReduceEventOpt().isPresent());
+    }
 
-        assertTrue(tradeEventsBlock.getReduceEvent().isPresent());
-        assertThat(tradeEventsBlock.getTrades().length, is(0));
+    /**
+     * Reject order with duplicate orderId
+     */
+    @Test
+    public void shouldRejectIncorrectOrderSize() {
+
+        placeOrder(ORDER_TYPE_GTC, 1L, UID_1, 86600L, 86600L, 0L, BID,
+                RESULT_INCORRECT_ORDER_SIZE,
+                verifyEmptyRemainingSize(),
+                verifyOrderCompleted(),
+                verifyNoTradeEvents());
+    }
+
+    @Test
+    public void shouldRejectUnsupportedType() {
+        placeOrder(ORDER_TYPE_IOC_BUDGET, 1L, UID_1, 86600L, 86600L, 182739L, BID,
+                RESULT_UNSUPPORTED_ORDER_TYPE,
+                verifyEmptyRemainingSize(),
+                verifyOrderCompleted(),
+                verifyNoTradeEvents());
+
+        placeOrder(ORDER_TYPE_FOK, 1L, UID_1, 6600L, 0L, 48823L, ASK,
+                RESULT_UNSUPPORTED_ORDER_TYPE,
+                verifyEmptyRemainingSize(),
+                verifyOrderCompleted(),
+                verifyNoTradeEvents());
     }
 
 
     /**
-     * Remove existing order
+     * Cancel existing order
      */
     @Test
     public void shouldCancelBidOrder() {
 
         // cancel bid order
-        CommandProcessingResponse res = cancel(5L, UID_1);
+        CommandResponse res = cancel(5L, UID_1);
 
         expectedState.setBidVolume(1, 1L).decrementBidOrdersNum(1);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
 
         verifySingleReduceEvent(res, UID_1, 5L, BID, 81590L, 82004L, 20L, true);
     }
@@ -224,10 +298,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldCancelAskOrder() {
         // cancel ask order
-        CommandProcessingResponse res = cancel(2L, UID_1);
+        CommandResponse res = cancel(2L, UID_1);
 
         expectedState.setAskVolume(0, 25L).decrementAskOrdersNum(0);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
 
         verifySingleReduceEvent(res, UID_1, 2L, ASK, 81599L, 0L, 50L, true);
     }
@@ -236,10 +310,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldReduceBidOrder() {
 
         // reduce bid order
-        CommandProcessingResponse res = reduce(5L, UID_1, 3L);
+        CommandResponse res = reduce(5L, UID_1, 3L);
 
         expectedState.decrementBidVolume(1, 3L);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
 
         verifySingleReduceEvent(res, UID_1, 5L, BID, 81590L, 82004L, 3L, false);
     }
@@ -248,10 +322,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldReduceAskOrder() {
         // reduce ask order - will effectively remove order
-        CommandProcessingResponse res = reduce(1L, UID_1, 300L);
+        CommandResponse res = reduce(1L, UID_1, 300L);
 
         expectedState.removeAsk(1);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
 
         verifySingleReduceEvent(res, UID_1, 1L, ASK, 81600L, 0L, 100L, true);
     }
@@ -259,30 +333,30 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldReduceOrderByMaxSize() {
         // reduce ask order by max possible value - will effectively remove order
-        CommandProcessingResponse res = reduce(1L, UID_1, Long.MAX_VALUE);
+        CommandResponse res = reduce(1L, UID_1, Long.MAX_VALUE);
 
         expectedState.removeAsk(1);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
 
         verifySingleReduceEvent(res, UID_1, 1L, ASK, 81600L, 0L, 100L, true);
     }
 
     @Test
-    public void shouldIgnoreReducingByNegativeSize() {
+    public void shouldNotReduceByNegativeOrZero() {
 
         // zero
-        CommandProcessingResponse res = reduce(4, UID_1, 0L);
+        CommandResponse res = reduce(4, UID_1, 0L, RESULT_INCORRECT_REDUCE_SIZE);
         verifyNoEvents(res);
 
         // negative
-        res = reduce(8, UID_1, -1L);
+        res = reduce(8, UID_1, -1L, RESULT_INCORRECT_REDUCE_SIZE);
         verifyNoEvents(res);
 
         // big negative
-        res = reduce(8, UID_1, Long.MIN_VALUE);
+        res = reduce(8, UID_1, Long.MIN_VALUE, RESULT_INCORRECT_REDUCE_SIZE);
         verifyNoEvents(res);
 
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
     }
 
 
@@ -291,89 +365,101 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
      */
     @Test
     public void shouldCancelOrderAndEmptyBucket() {
-        CommandProcessingResponse res = cancel(2L, UID_1);
+        CommandResponse res = cancel(2L, UID_1);
 
         verifySingleReduceEvent(res, UID_1, 2L, ASK, 81599L, 0L, 50L, true);
 
-        //log.debug("{}", orderBook.getL2MarketDataSnapshot(10).dumpOrderBook());
-
-        CommandProcessingResponse res2 = cancel(3L, UID_1);
+        CommandResponse res2 = cancel(3L, UID_1);
 
         verifySingleReduceEvent(res2, UID_1, 3L, ASK, 81599L, 0L, 25L, true);
 
         expectedState.removeAsk(0);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
     }
 
     @Test
     public void shouldReturnErrorWhenCancelUnknownOrder() {
 
-        CommandProcessingResponse res = cancel(5291L, UID_1, RESULT_UNKNOWN_ORDER_ID);
+        CommandResponse res = cancel(5291L, UID_1, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
     }
 
     @Test
     public void shouldReturnErrorWhenCancelOtherUserOrder() {
 
-        CommandProcessingResponse res = cancel(3L, UID_2, RESULT_UNKNOWN_ORDER_ID);
+        CommandResponse res = cancel(3L, UID_2, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
     }
 
     @Test
     public void shouldReturnErrorWhenMoveOtherUserOrder() {
 
-        CommandProcessingResponse res = move(2L, UID_2, 100L, RESULT_UNKNOWN_ORDER_ID);
+        CommandResponse res = move(2L, UID_2, 100L, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
     }
 
 
     @Test
     public void shouldReturnErrorWhenMoveUnknownOrder() {
 
-        CommandProcessingResponse res = move(2433L, UID_1, 300L, RESULT_UNKNOWN_ORDER_ID);
+        CommandResponse res = move(2433L, UID_1, 300L, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
+    }
+
+    @Test
+    public void shouldReturnErrorWhenMoveOverBidPriceLimit() {
+
+        // bid price hold = 82044L
+        CommandResponse res = move(7L, UID_1, 82045L, RESULT_MOVE_FAILED_PRICE_OVER_RISK_LIMIT);
+        verifyNoEvents(res);
+
+        // not completed if such errors is received
+        assertFalse(res.isOrderCompleted());
+        assertThat(res.getTakerAction(), is(BID));
+
+        verifyExpectedL2Data();
     }
 
     @Test
     public void shouldReturnErrorWhenReducingUnknownOrder() {
 
-        CommandProcessingResponse res = reduce(329813L, UID_1, 1L, RESULT_UNKNOWN_ORDER_ID);
+        CommandResponse res = reduce(329813L, UID_1, 1L, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
     }
 
 
     @Test
     public void shouldReturnErrorWhenReducingOtherUserOrder() {
 
-        CommandProcessingResponse res = reduce(8L, UID_2, 3L, RESULT_UNKNOWN_ORDER_ID);
+        CommandResponse res = reduce(8L, UID_2, 3L, RESULT_UNKNOWN_ORDER_ID);
         verifyNoEvents(res);
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expectedState.build()));
+        verifyExpectedL2Data();
     }
 
     @Test
     public void shouldMoveOrderIntoExistingBucket() {
-        CommandProcessingResponse res = move(7L, UID_1, 81590L);
+        CommandResponse res = move(7L, UID_1, 81590L);
         verifyNoEvents(res);
 
         // moved
-        L2MarketData expected = expectedState.setBidVolume(1, 41L).incrementBidOrdersNum(1).removeBid(2).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.setBidVolume(1, 41L).incrementBidOrdersNum(1).removeBid(2);
+        verifyExpectedL2Data();
     }
 
 
     @Test
     public void shouldMoveOrderNewBucket() {
-        CommandProcessingResponse res = move(7L, UID_1, 81594L);
+        CommandResponse res = move(7L, UID_1, 81594L);
         verifyNoEvents(res);
 
         // moved
-        L2MarketData expected = expectedState.removeBid(2).insertBid(0, 81594L, 20L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeBid(2).insertBid(0, 81594L, 20L);
+        verifyExpectedL2Data();
     }
 
     // ------------------------ MATCHING TESTS -----------------------
@@ -382,11 +468,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldMatchIocOrderPartialBBO() {
 
         // size=10
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 10L, ASK);
+        CommandResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 10L, ASK);
 
         // best bid matched
-        L2MarketData expected = expectedState.setBidVolume(0, 30L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.setBidVolume(0, 30L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, ASK, true,
@@ -400,11 +486,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldMatchIocOrderFullBBO() {
 
         // size=40
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 40L, ASK);
+        CommandResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 40L, ASK);
 
         // best bid matched
-        L2MarketData expected = expectedState.removeBid(0).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeBid(0);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, ASK, true,
@@ -418,11 +504,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldMatchIocOrderWithTwoLimitOrdersPartial() {
 
         // size=41
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 41L, ASK);
+        CommandResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, 1L, 0L, 41L, ASK);
 
         // best bid matched
-        L2MarketData expected = expectedState.removeBid(0).setBidVolume(0, 20L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeBid(0).setBidVolume(0, 20L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, ASK, true,
@@ -438,11 +524,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldMatchIocOrderMultipleOrders() {
 
         // size=175
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, MAX_PRICE, MAX_PRICE, 175L, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, MAX_PRICE, MAX_PRICE, 175L, BID);
 
         // asks matched
-        L2MarketData expected = expectedState.removeAsk(0).removeAsk(0).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAsk(0).removeAsk(0);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, BID, true,
@@ -461,11 +547,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldMatchIocOrderWithRejection() {
 
         // size=270
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, MAX_PRICE, MAX_PRICE + 1, 270L, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_IOC, 123L, UID_2, MAX_PRICE, MAX_PRICE + 1, 270L, BID);
 
         // all asks matched
-        L2MarketData expected = expectedState.removeAllAsks().build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAllAsks();
+        verifyExpectedL2Data();
 
         // 6 trades generated, rejection with size=25 left unmatched
         verifyTradeEvents(
@@ -488,10 +574,9 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         long buyBudget = expectedState.aggregateBuyBudget(size) - 1;
         assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L * 5L - 1));
 
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
 
-        L2MarketData expected = expectedState.build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        verifyExpectedL2Data();
 
         // no trades generated, rejection with full size unmatched
         verifyTradeEvents(
@@ -506,10 +591,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         long buyBudget = expectedState.aggregateBuyBudget(size);
         assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L * 5L));
 
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
 
-        L2MarketData expected = expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 5L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 5L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, BID, true,
@@ -527,10 +612,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         long buyBudget = expectedState.aggregateBuyBudget(size) + 1;
         assertThat(buyBudget, is(81599L * 75L + 81600L * 100L + 200954L + 1L));
 
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
 
-        L2MarketData expected = expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 9L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAsk(0).removeAsk(0).setAskVolume(0, 9L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, BID, true,
@@ -542,16 +627,31 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 
 
     @Test
+    public void shouldRejectFokBidOrderOutOfLiquidity() {
+
+        long size = 1000000000000000L;
+        long buyBudget = 1000000000000000L;
+
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, buyBudget, buyBudget, size, BID);
+
+        verifyExpectedL2Data();
+
+        // no trades generated, rejection with full size unmatched
+        verifyTradeEvents(
+                res, UID_2, 123L, BID, true,
+                new ReduceEvent(size, buyBudget, buyBudget));
+    }
+
+    @Test
     public void shouldRejectFokAskOrderBelowExpectation() {
 
         long size = 60L;
         long sellExpectation = expectedState.aggregateSellExpectation(size) + 1;
         assertThat(sellExpectation, is(81593L * 40L + 81590L * 20L + 1));
 
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
 
-        L2MarketData expected = expectedState.build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        verifyExpectedL2Data();
 
         // no trades generated, rejection with full size unmatched
         verifyTradeEvents(
@@ -566,10 +666,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         long sellExpectation = expectedState.aggregateSellExpectation(size);
         assertThat(sellExpectation, is(81593L * 40L + 81590L * 20L));
 
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
 
-        L2MarketData expected = expectedState.removeBid(0).setBidVolume(0, 1).decrementBidOrdersNum(0).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeBid(0).setBidVolume(0, 1).decrementBidOrdersNum(0);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, ASK, true,
@@ -584,10 +684,10 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         long sellExpectation = expectedState.aggregateSellExpectation(size) - 1;
         assertThat(sellExpectation, is(81593L * 40L + 81590L * 21L - 1));
 
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
 
-        L2MarketData expected = expectedState.removeBid(0).removeBid(0).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeBid(0).removeBid(0);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, ASK, true,
@@ -596,6 +696,21 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
                 new TradeEvent(6L, UID_1, 81590L, 82020L, 1L, true));
     }
 
+    @Test
+    public void shouldRejectFokAskOrderOutOfLiquidity() {
+
+        long size = 10000000000L;
+        long sellExpectation = 1L;
+
+        CommandResponse res = placeOrder(ORDER_TYPE_FOK_BUDGET, 123L, UID_2, sellExpectation, 0L, size, ASK);
+
+        verifyExpectedL2Data();
+
+        // no trades generated, rejection with full size unmatched
+        verifyTradeEvents(
+                res, UID_2, 123L, ASK, true,
+                new ReduceEvent(size, sellExpectation, 0L));
+    }
 
     // MARKETABLE GTC ORDERS
 
@@ -603,11 +718,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldFullyMatchMarketableGtcOrder() {
 
         // size=1
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81599L, MAX_PRICE, 1L, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81599L, MAX_PRICE, 1L, BID);
 
         // best ask partially matched
-        L2MarketData expected = expectedState.setAskVolume(0, 74L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.setAskVolume(0, 74L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, BID, true,
@@ -618,11 +733,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldPartiallyMatchMarketableGtcOrderAndPlace() {
 
         // size=77
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81599L, MAX_PRICE, 77L, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81599L, MAX_PRICE, 77L, BID);
 
         // best asks fully matched, limit bid order placed
-        L2MarketData expected = expectedState.removeAsk(0).insertBid(0, 81599L, 2L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAsk(0).insertBid(0, 81599L, 2L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, BID, false,
@@ -635,11 +750,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldFullyMatchMarketableGtcOrder2Prices() {
 
         // size=77
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81600L, MAX_PRICE, 77L, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 81600L, MAX_PRICE, 77L, BID);
 
         // best asks fully matched, limit bid order placed
-        L2MarketData expected = expectedState.removeAsk(0).setAskVolume(0, 98L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAsk(0).setAskVolume(0, 98L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 res, UID_2, 123L, BID, true,
@@ -653,11 +768,11 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldFullyMatchMarketableGtcOrderWithAllLiquidity() {
 
         // size=1000
-        CommandProcessingResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 220000L, MAX_PRICE + 1, 1000L, BID);
+        CommandResponse res = placeOrder(ORDER_TYPE_GTC, 123L, UID_2, 220000L, MAX_PRICE + 1, 1000L, BID);
 
         // best asks fully matched, limit bid order placed
-        L2MarketData expected = expectedState.removeAllAsks().insertBid(0, 220000L, 755L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAllAsks().insertBid(0, 220000L, 755L);
+        verifyExpectedL2Data();
 
         // trades only, rejection not generated for limit order
         verifyTradeEvents(
@@ -675,18 +790,18 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     public void shouldMoveOrderFullyMatchAsMarketable() {
 
         // add new order and check it is there
-        CommandProcessingResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81200L, MAX_PRICE, 20L, BID);
+        CommandResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81200L, MAX_PRICE, 20L, BID);
         verifyNoEvents(resPlace);
 
-        L2MarketData expected = expectedState.setBidVolume(2, 40L).incrementBidOrdersNum(2).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.setBidVolume(2, 40L).incrementBidOrdersNum(2);
+        verifyExpectedL2Data();
 
         // move to marketable price area
-        CommandProcessingResponse resMove = move(83L, UID_2, 81602L);
+        CommandResponse resMove = move(83L, UID_2, 81602L);
 
         // moved
-        expected = expectedState.setBidVolume(2, 20L).decrementBidOrdersNum(2).setAskVolume(0, 55L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.setBidVolume(2, 20L).decrementBidOrdersNum(2).setAskVolume(0, 55L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 resMove, UID_2, 83L, BID, true,
@@ -697,15 +812,15 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldMoveOrderFullyMatchAsMarketable2Prices() {
 
-        CommandProcessingResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81594L, MAX_PRICE, 100L, BID);
+        CommandResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81594L, MAX_PRICE, 100L, BID);
         verifyNoEvents(resPlace);
 
         // move to marketable zone
-        CommandProcessingResponse resMove = move(83L, UID_2, 81600L);
+        CommandResponse resMove = move(83L, UID_2, 81600L);
 
         // moved
-        L2MarketData expected = expectedState.removeAsk(0).setAskVolume(0, 75L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAsk(0).setAskVolume(0, 75L);
+        verifyExpectedL2Data();
 
         verifyTradeEvents(
                 resMove, UID_2, 83L, BID, true,
@@ -718,15 +833,16 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     @Test
     public void shouldMoveOrderMatchesAllLiquidity() {
 
-        CommandProcessingResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81594L, MAX_PRICE, 246L, BID);
+        CommandResponse resPlace = placeOrder(ORDER_TYPE_GTC, 83L, UID_2, 81594L, MAX_PRICE, 246L, BID);
         verifyNoEvents(resPlace);
 
         // move to marketable zone
-        CommandProcessingResponse resMove = move(83L, UID_2, 201000L);
+        CommandResponse resMove = move(83L, UID_2, 201000L);
 
         // moved
-        L2MarketData expected = expectedState.removeAllAsks().insertBid(0, 201000L, 1L).build();
-        assertThat(orderBook.getL2MarketDataSnapshot(), is(expected));
+        expectedState.removeAllAsks().insertBid(0, 201000L, 1L);
+        verifyExpectedL2Data();
+
 
         verifyTradeEvents(
                 resMove, UID_2, 83L, BID, false,
@@ -737,6 +853,16 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
                 new TradeEvent(8L, UID_1, 201000L, MAX_PRICE, 28L, true),
                 new TradeEvent(9L, UID_1, 201000L, MAX_PRICE, 32L, true));
     }
+
+    @Test
+    public void shouldFindUserOrders() {
+        // same orders as placed initially (ignore ordering)
+        assertThat(new HashSet<>(orderBook.findUserOrders(UID_1)), is(new HashSet<>(gtcOrders)));
+
+        // no orders for UID2
+        assertTrue(orderBook.findUserOrders(UID_2).isEmpty());
+    }
+
 
 //    @Test
 //    public void multipleCommandsKeepInternalStateTest() {
@@ -768,60 +894,88 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
 //    }
 
     // ------------------------------- UTILITY METHODS --------------------------
-    protected CommandProcessingResponse placeOrder(final byte type,
-                                                   final long orderId,
-                                                   final long uid,
-                                                   final long price,
-                                                   final long reservedBidPrice,
-                                                   final long size,
-                                                   final OrderAction action) {
 
-        orderBook.newOrder(CommandsEncoder.placeOrder(type, orderId, uid, price, reservedBidPrice, size, action), 0);
+    private void placeOrderGTC(final IOrder order) {
+        placeOrder(ORDER_TYPE_GTC, order.getOrderId(), order.getUid(), order.getPrice(), order.getReserveBidPrice(), order.getSize(), order.getAction());
+    }
 
-        final CommandProcessingResponse response = ResponseDecoder.readResult(responseBuffer, 0);
+    @SafeVarargs
+    private final CommandResponsePlace placeOrder(final byte type,
+                                                  final long orderId,
+                                                  final long uid,
+                                                  final long price,
+                                                  final long reservedBidPrice,
+                                                  final long size,
+                                                  final OrderAction action,
+                                                  final Consumer<CommandResponse>... responseValidators) {
 
-        assertThat(response.getResultCode(), is(RESULT_SUCCESS));
+        return placeOrder(type, orderId, uid, price, reservedBidPrice, size, action, RESULT_SUCCESS, responseValidators);
+    }
 
-        final Optional<TradeEventsBlock> tradeEventsBlockOpt = response.getTradeEventsBlock();
+    @SafeVarargs
+    private final CommandResponsePlace placeOrder(final byte type,
+                                                  final long orderId,
+                                                  final long uid,
+                                                  final long price,
+                                                  final long reservedBidPrice,
+                                                  final long size,
+                                                  final OrderAction action,
+                                                  final short expectedResultCode,
+                                                  final Consumer<CommandResponse>... responseValidators) {
 
-        if (type != ORDER_TYPE_GTC) {
-            // trades block is mandatory for non GTC orders
-            assertTrue(tradeEventsBlockOpt.isPresent());
-        }
+        bufferWriter.reset();
+        final int userCookie = Objects.hash(uid, orderId, price, size);
+        final MutableDirectBuffer buffer = CommandsEncoder.placeOrder(type, orderId, uid, price, reservedBidPrice, size, action, userCookie);
+        orderBook.newOrder(buffer, 0, 12345678L);
 
-        if (tradeEventsBlockOpt.isPresent()) {
+        final CommandResponsePlace response = (CommandResponsePlace) ResponseDecoder.readResult(responseBuffer, bufferWriter.getWriterPosition());
 
-            final TradeEventsBlock tradeEventsBlock = tradeEventsBlockOpt.get();
+        assertThat(response.getResultCode(), is(expectedResultCode));
 
-            assertThat(tradeEventsBlock.getTakerAction(), is(action));
-            assertThat(tradeEventsBlock.getTakerOrderId(), is(orderId));
-            assertThat(tradeEventsBlock.getTakerUid(), is(uid));
+        assertThat(response.getTakerAction(), is(action));
+        assertThat(response.getOrderId(), is(orderId));
+        assertThat(response.getUid(), is(uid));
+        assertThat(response.getUserCookie(), is(userCookie));
 
-            final MutableLong totalVolumeInEvents = new MutableLong();
+        Arrays.stream(responseValidators).forEach(v -> v.accept(response));
 
-            final Optional<ReduceEvent> reduceEventOpt = tradeEventsBlock.getReduceEvent();
-            final TradeEvent[] trades = tradeEventsBlock.getTrades();
-            assertTrue(reduceEventOpt.isPresent() || trades.length != 0);
+        final MutableLong totalVolumeInEvents = new MutableLong();
 
-            reduceEventOpt.ifPresent(reduceEvent -> {
-                assertThat(reduceEvent.getPrice(), is(price));
-                assertThat(reduceEvent.getReservedBidPrice(), is(action == BID ? reservedBidPrice : 0L));
-                assertTrue(reduceEvent.getReducedVolume() > 0);
-                totalVolumeInEvents.addAndGet(reduceEvent.getReducedVolume());
-            });
+        final Optional<ReduceEvent> reduceEventOpt = response.getReduceEventOpt();
+        final List<TradeEvent> trades = response.getTrades();
 
-            Arrays.stream(trades).forEach(trade -> {
-                assertThat(trade.getMakerOrderId(), IsNot.not(0L));
-                assertThat(trade.getMakerUid(), IsNot.not(0L));
-                assertTrue(trade.getReservedBidPrice() > 0);
-                assertTrue(trade.getTradePrice() > 0);
-                assertTrue(trade.getTradeVolume() > 0);
-                totalVolumeInEvents.addAndGet(trade.getTradeVolume());
-            });
+        reduceEventOpt.ifPresent(reduceEvent -> {
+            assertThat(reduceEvent.getPrice(), is(price));
+            assertThat(reduceEvent.getReservedBidPrice(), is(action == BID ? reservedBidPrice : 0L));
+            assertTrue(reduceEvent.getReducedSize() > 0);
+            totalVolumeInEvents.addAndGet(reduceEvent.getReducedSize());
+        });
+
+        trades.forEach(trade -> {
+            assertThat(trade.getMakerOrderId(), IsNot.not(0L));
+            assertThat(trade.getMakerUid(), IsNot.not(0L));
+            assertTrue(trade.getReservedBidPrice() > 0);
+            assertTrue(trade.getTradePrice() > 0);
+            assertTrue(trade.getTradeSize() > 0);
+            totalVolumeInEvents.addAndGet(trade.getTradeSize());
+        });
+
+        if (response.isSuccessful()) {
 
             if (type != ORDER_TYPE_GTC) {
+
+                // check total trades+reduce size in events
                 assertThat(totalVolumeInEvents.get(), is(size));
+
+                // sending  IoC or FoK order triggers either reduce or/and trades
+                assertTrue(reduceEventOpt.isPresent() || trades.size() != 0);
             }
+
+        } else {
+
+            // for failed orders - no events expected (! risk processor should apply same validations)
+            assertFalse(reduceEventOpt.isPresent());
+            assertTrue(trades.isEmpty());
         }
 
         orderBook.verifyInternalState();
@@ -829,99 +983,133 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
     }
 
     // cancel
-
-    protected CommandProcessingResponse cancel(final long orderId,
-                                               final long uid) {
+    @SafeVarargs
+    private final CommandResponseCancel cancel(final long orderId,
+                                               final long uid,
+                                               final Consumer<CommandResponse>... responseValidators) {
 
         return cancel(orderId, uid, RESULT_SUCCESS);
     }
 
-    protected CommandProcessingResponse cancel(final long orderId,
+    @SafeVarargs
+    private final CommandResponseCancel cancel(final long orderId,
                                                final long uid,
-                                               final short expectedResultCode) {
+                                               final short expectedResultCode,
+                                               final Consumer<CommandResponse>... responseValidators) {
 
+        bufferWriter.reset();
         orderBook.cancelOrder(CommandsEncoder.cancel(orderId, uid), 0);
-        return readResultAndVerifyInternalState(expectedResultCode);
+        CommandResponseCancel response = (CommandResponseCancel) readResultAndVerifyInternalState(expectedResultCode);
+
+        // no trades
+        assertTrue(response.getTrades().isEmpty());
+        assertTrue(response.isOrderCompleted());
+
+        // reduce event when SUCCESS result
+        assertThat(response.getReduceEventOpt().isPresent(), is(response.isSuccessful()));
+
+        assertThat(response.getOrderId(), is(orderId));
+        assertThat(response.getUid(), is(uid));
+
+        if (!response.isSuccessful()) {
+            // ASK for any error
+            assertThat(response.getTakerAction(), is(ASK));
+        }
+
+        return response;
     }
 
     // reduce
 
-    protected CommandProcessingResponse reduce(final long orderId,
-                                               final long uid,
-                                               final long size) {
+    protected CommandResponseReduce reduce(final long orderId,
+                                           final long uid,
+                                           final long size) {
+
         return reduce(orderId, uid, size, RESULT_SUCCESS);
 
     }
 
-    protected CommandProcessingResponse reduce(final long orderId,
-                                               final long uid,
-                                               final long size,
-                                               final short expectedResultCode) {
+    protected CommandResponseReduce reduce(final long orderId,
+                                           final long uid,
+                                           final long size,
+                                           final short expectedResultCode) {
+
+        bufferWriter.reset();
         orderBook.reduceOrder(CommandsEncoder.reduce(orderId, uid, size), 0);
-        return readResultAndVerifyInternalState(expectedResultCode);
+        return (CommandResponseReduce) readResultAndVerifyInternalState(expectedResultCode);
     }
 
     // move
 
-    protected CommandProcessingResponse move(final long orderId,
-                                             final long uid,
-                                             final long price) {
+    protected CommandResponseMove move(final long orderId,
+                                       final long uid,
+                                       final long price) {
 
         return move(orderId, uid, price, RESULT_SUCCESS);
     }
 
-    protected CommandProcessingResponse move(final long orderId,
-                                             final long uid,
-                                             final long price,
-                                             final short expectedResultCode) {
+    protected CommandResponseMove move(final long orderId,
+                                       final long uid,
+                                       final long price,
+                                       final short expectedResultCode) {
 
+        bufferWriter.reset();
         orderBook.moveOrder(CommandsEncoder.move(orderId, uid, price), 0);
-        return readResultAndVerifyInternalState(expectedResultCode);
+        return (CommandResponseMove) readResultAndVerifyInternalState(expectedResultCode);
     }
 
-    private CommandProcessingResponse readResultAndVerifyInternalState(short expectedResultCode) {
-        final CommandProcessingResponse response = ResponseDecoder.readResult(responseBuffer, 0);
+    protected QueryResponseL2Data queryL2Data() {
+        return queryL2Data(Integer.MAX_VALUE, RESULT_SUCCESS);
+    }
+
+    protected QueryResponseL2Data queryL2Data(final int recordsLimit,
+                                              final short expectedResultCode) {
+
+        bufferWriter.reset();
+        orderBook.sendL2Snapshot(CommandsEncoder.L2DataQuery(recordsLimit), 0);
+        return (QueryResponseL2Data) readResultAndVerifyInternalState(expectedResultCode);
+    }
+
+
+    private OrderBookResponse readResultAndVerifyInternalState(short expectedResultCode) {
+        final OrderBookResponse response = ResponseDecoder.readResult(responseBuffer, bufferWriter.getWriterPosition());
         assertThat(response.getResultCode(), is(expectedResultCode));
 
         orderBook.verifyInternalState();
         return response;
     }
 
-    private void verifyNoEvents(final CommandProcessingResponse res) {
-        assertFalse(res.getTradeEventsBlock().isPresent());
+    private void verifyNoEvents(final CommandResponse res) {
+
+        assertFalse(res.getReduceEventOpt().isPresent());
+        assertTrue(res.getTrades().isEmpty());
     }
 
-    private void verifySingleReduceEvent(final CommandProcessingResponse res,
+    private void verifySingleReduceEvent(final CommandResponse res,
                                          final long uid,
                                          final long orderId,
                                          final OrderAction action,
                                          final long price,
                                          final long reservedBidPrice,
-                                         final long reducedVolume,
+                                         final long reducedSize,
                                          final boolean completed) {
 
-        Optional<TradeEventsBlock> tradeEventsBlockOpt = res.getTradeEventsBlock();
-        assertTrue(tradeEventsBlockOpt.isPresent());
-        TradeEventsBlock tradeEventsBlock = tradeEventsBlockOpt.get();
+        assertThat(res.getUid(), is(uid));
+        assertThat(res.getOrderId(), is(orderId));
+        assertThat(res.isOrderCompleted(), is(completed));
+        assertThat(res.getTakerAction(), is(action));
 
+        assertTrue(res.getTrades().isEmpty());
 
-        assertThat(tradeEventsBlock.getTakerUid(), is(uid));
-        assertThat(tradeEventsBlock.getTakerOrderId(), is(orderId));
-        assertThat(tradeEventsBlock.isTakerOrderCompleted(), is(completed));
-        assertThat(tradeEventsBlock.getTakerAction(), is(action));
-
-        assertThat(tradeEventsBlock.getTrades().length, is(0));
-
-        Optional<ReduceEvent> reduceEventOpt = tradeEventsBlock.getReduceEvent();
-        assertTrue(reduceEventOpt.isPresent());
-        ReduceEvent reduceEvent = reduceEventOpt.get();
+        assertTrue(res.getReduceEventOpt().isPresent());
+        final ReduceEvent reduceEvent = res.getReduceEventOpt().get();
 
         assertThat(reduceEvent.getPrice(), is(price));
         assertThat(reduceEvent.getReservedBidPrice(), is(reservedBidPrice));
-        assertThat(reduceEvent.getReducedVolume(), is(reducedVolume));
+        assertThat(reduceEvent.getReducedSize(), is(reducedSize));
     }
 
-    private void verifyTradeEvents(final CommandProcessingResponse res,
+    private void verifyTradeEvents(final CommandResponse res,
                                    final long uid,
                                    final long orderId,
                                    final OrderAction action,
@@ -931,7 +1119,7 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
         verifyTradeEvents(res, uid, orderId, action, takerOrderCompleted, null, tradeEvents);
     }
 
-    private void verifyTradeEvents(final CommandProcessingResponse res,
+    private void verifyTradeEvents(final CommandResponse res,
                                    final long uid,
                                    final long orderId,
                                    final OrderAction action,
@@ -939,20 +1127,54 @@ public abstract class OrderBookBaseTest<S extends ISymbolSpecification> {
                                    final ReduceEvent reduceEvent,
                                    final TradeEvent... tradeEvents) {
 
-        Optional<TradeEventsBlock> tradeEventsBlockOpt = res.getTradeEventsBlock();
-        assertTrue(tradeEventsBlockOpt.isPresent());
-        TradeEventsBlock tradeEventsBlock = tradeEventsBlockOpt.get();
 
+        assertThat(res.getUid(), is(uid));
+        assertThat(res.getOrderId(), is(orderId));
+        assertThat(res.getTakerAction(), is(action));
+        assertThat(res.isOrderCompleted(), is(takerOrderCompleted));
 
-        assertThat(tradeEventsBlock.getTakerUid(), is(uid));
-        assertThat(tradeEventsBlock.getTakerOrderId(), is(orderId));
-        assertThat(tradeEventsBlock.getTakerAction(), is(action));
-        assertThat(tradeEventsBlock.isTakerOrderCompleted(), is(takerOrderCompleted));
+        final List<TradeEvent> tradeEventsList = Arrays.asList(tradeEvents);
+        assertThat(res.getTrades(), is((tradeEventsList)));
 
-        assertThat(tradeEventsBlock.getTrades(), is(tradeEvents));
-
-        Optional<ReduceEvent> reduceEventOpt = tradeEventsBlock.getReduceEvent();
+        final Optional<ReduceEvent> reduceEventOpt = res.getReduceEventOpt();
         assertThat(reduceEventOpt, is(Optional.ofNullable(reduceEvent)));
     }
 
+    protected void verifyExpectedL2Data() {
+        assertTrue(expectedState.checkL2Data(queryL2Data()));
+    }
+
+
+    protected Consumer<CommandResponse> verifyRemainingSize(final long expected) {
+        return resp -> assertThat(resp.getRemainingSizeOpt(), is(Optional.of(expected)));
+    }
+
+    protected Consumer<CommandResponse> verifyEmptyRemainingSize() {
+        return resp -> assertThat(resp.getRemainingSizeOpt(), is(Optional.empty()));
+    }
+
+
+    protected Consumer<CommandResponse> verifyOrderCompleted() {
+        return resp -> assertTrue(resp.isOrderCompleted());
+    }
+
+    protected Consumer<CommandResponse> verifyOrderNotCompleted() {
+        return resp -> assertFalse(resp.isOrderCompleted());
+    }
+
+    protected Consumer<CommandResponse> verifyNoReduceEvent() {
+        return resp -> assertFalse(resp.getReduceEventOpt().isPresent());
+    }
+
+    protected Consumer<CommandResponse> verifyNoTradeEvents() {
+        return resp -> assertTrue(resp.getTrades().isEmpty());
+    }
+
+    protected Consumer<CommandResponse> verifyTradeEventsNum(final int expectedNumber) {
+        return resp -> assertThat(resp.getTrades().size(), is(expectedNumber));
+    }
+
+    protected Consumer<CommandResponse> verifyTakerAction(final OrderAction expectedAction) {
+        return resp -> assertThat(resp.getTakerAction(), is(expectedAction));
+    }
 }

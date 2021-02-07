@@ -12,7 +12,26 @@ Core2 OrderBook is an **open source high performance Java order book** implement
 <dependency>
     <groupId>exchange.core2</groupId>
     <artifactId>orderbook</artifactId>
-    <version>0.7.0</version>
+    <version>0.7.1</version>
+</dependency>
+
+<dependency>
+    <groupId>org.agrona</groupId>
+    <artifactId>agrona</artifactId>
+    <version>1.8.0</version>
+    <scope>provided</scope>
+</dependency>
+<dependency>
+    <groupId>org.eclipse.collections</groupId>
+    <artifactId>eclipse-collections-api</artifactId>
+    <version>10.4.0</version>
+    <scope>provided</scope>
+</dependency>
+<dependency>
+    <groupId>org.eclipse.collections</groupId>
+    <artifactId>eclipse-collections</artifactId>
+    <version>10.4.0</version>
+    <scope>provided</scope>
 </dependency>
 ```
 

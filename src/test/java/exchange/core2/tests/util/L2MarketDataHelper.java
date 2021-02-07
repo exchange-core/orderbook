@@ -16,7 +16,7 @@
 package exchange.core2.tests.util;
 
 import com.google.common.base.Strings;
-import exchange.core2.orderbook.L2MarketData;
+import exchange.core2.orderbook.api.QueryResponseL2Data;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.Arrays;
@@ -25,30 +25,20 @@ public class L2MarketDataHelper {
 
     private long[] askPrices;
     private long[] askVolumes;
-    private long[] askOrders;
+    private int[] askOrders;
     private long[] bidPrices;
     private long[] bidVolumes;
-    private long[] bidOrders;
+    private int[] bidOrders;
 
-    public L2MarketDataHelper(L2MarketData l2) {
-        askPrices = Arrays.copyOf(l2.askPrices, l2.askPrices.length);
-        askVolumes = Arrays.copyOf(l2.askVolumes, l2.askVolumes.length);
-        askOrders = Arrays.copyOf(l2.askOrders, l2.askOrders.length);
-        bidPrices = Arrays.copyOf(l2.bidPrices, l2.bidPrices.length);
-        bidVolumes = Arrays.copyOf(l2.bidVolumes, l2.bidVolumes.length);
-        bidOrders = Arrays.copyOf(l2.bidOrders, l2.bidOrders.length);
+    public L2MarketDataHelper(long[] askPrices, long[] askVolumes, int[] askOrders, long[] bidPrices, long[] bidVolumes, int[] bidOrders) {
+        this.askPrices = askPrices;
+        this.askVolumes = askVolumes;
+        this.askOrders = askOrders;
+        this.bidPrices = bidPrices;
+        this.bidVolumes = bidVolumes;
+        this.bidOrders = bidOrders;
     }
 
-    public L2MarketData build() {
-        return new L2MarketData(
-                askPrices,
-                askVolumes,
-                askOrders,
-                bidPrices,
-                bidVolumes,
-                bidOrders
-        );
-    }
 
     public long aggregateBuyBudget(long size) {
 
@@ -156,7 +146,7 @@ public class L2MarketDataHelper {
     public L2MarketDataHelper removeAllAsks() {
         askPrices = new long[0];
         askVolumes = new long[0];
-        askOrders = new long[0];
+        askOrders = new int[0];
         return this;
     }
 
@@ -170,7 +160,7 @@ public class L2MarketDataHelper {
     public L2MarketDataHelper removeAllBids() {
         bidPrices = new long[0];
         bidVolumes = new long[0];
-        bidOrders = new long[0];
+        bidOrders = new int[0];
         return this;
     }
 
@@ -202,22 +192,33 @@ public class L2MarketDataHelper {
         return this;
     }
 
+    public boolean checkL2Data(final QueryResponseL2Data data) {
 
-    public static String dumpOrderBook(L2MarketData l2MarketData) {
+        if (data.getAsks().size() != askOrders.length) return false;
+        if (data.getBids().size() != bidOrders.length) return false;
 
-        int askSize = l2MarketData.askSize;
-        int bidSize = l2MarketData.bidSize;
+        for (int i = 0; i < askOrders.length; i++) {
+            final QueryResponseL2Data.L2Record r = data.getAsks().get(i);
+            if (r.getPrice() != askPrices[i]) return false;
+            if (r.getOrders() != askOrders[i]) return false;
+            if (r.getVolume() != askVolumes[i]) return false;
+        }
 
-        long[] askPrices = l2MarketData.askPrices;
-        long[] askVolumes = l2MarketData.askVolumes;
-        long[] askOrders = l2MarketData.askOrders;
-        long[] bidPrices = l2MarketData.bidPrices;
-        long[] bidVolumes = l2MarketData.bidVolumes;
-        long[] bidOrders = l2MarketData.bidOrders;
+        for (int i = 0; i < bidOrders.length; i++) {
+            final QueryResponseL2Data.L2Record r = data.getBids().get(i);
+            if (r.getPrice() != bidPrices[i]) return false;
+            if (r.getOrders() != bidOrders[i]) return false;
+            if (r.getVolume() != bidVolumes[i]) return false;
+        }
 
-        int priceWidth = maxWidth(2, Arrays.copyOf(askPrices, askSize), Arrays.copyOf(bidPrices, bidSize));
-        int volWidth = maxWidth(2, Arrays.copyOf(askVolumes, askSize), Arrays.copyOf(bidVolumes, bidSize));
-        int ordWith = maxWidth(2, Arrays.copyOf(askOrders, askSize), Arrays.copyOf(bidOrders, bidSize));
+        return true;
+    }
+
+    public String dumpOrderBook() {
+
+        int priceWidth = maxWidth(2, askPrices, bidPrices);
+        int volWidth = maxWidth(2, askVolumes, bidVolumes);
+        int ordWith = maxWidth(2, askOrders, bidOrders);
 
         StringBuilder s = new StringBuilder("Order book:\n");
         s.append(".")
@@ -226,7 +227,7 @@ public class L2MarketDataHelper {
                 .append(Strings.repeat("-", volWidth + ordWith - 1))
 
                 .append(".\n");
-        for (int i = askSize - 1; i >= 0; i--) {
+        for (int i = askPrices.length - 1; i >= 0; i--) {
             String price = Strings.padStart(String.valueOf(askPrices[i]), priceWidth, ' ');
             String volume = Strings.padStart(String.valueOf(askVolumes[i]), volWidth, ' ');
             String orders = Strings.padStart(String.valueOf(askOrders[i]), ordWith, ' ');
@@ -241,7 +242,7 @@ public class L2MarketDataHelper {
                 .append(Strings.repeat("-", ordWith))
                 .append("|\n");
 
-        for (int i = 0; i < bidSize; i++) {
+        for (int i = 0; i < bidPrices.length; i++) {
             String price = Strings.padStart(String.valueOf(bidPrices[i]), priceWidth, ' ');
             String volume = Strings.padStart(String.valueOf(bidVolumes[i]), volWidth, ' ');
             String orders = Strings.padStart(String.valueOf(bidOrders[i]), ordWith, ' ');

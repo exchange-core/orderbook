@@ -14,33 +14,24 @@
  * limitations under the License.
  */
 
-package exchange.core2.orderbook.events;
+package exchange.core2.orderbook.api;
 
-import java.util.Optional;
+import static exchange.core2.orderbook.IOrderBook.RESULT_SUCCESS;
 
-public class CommandProcessingResponse {
+public abstract class OrderBookResponse {
 
     private final short resultCode;
-    private final TradeEventsBlock tradeEventsBlock;
 
-    public CommandProcessingResponse(short resultCode, TradeEventsBlock tradeEventsBlock) {
+    public OrderBookResponse(final short resultCode) {
         this.resultCode = resultCode;
-        this.tradeEventsBlock = tradeEventsBlock;
     }
 
     public short getResultCode() {
         return resultCode;
     }
 
-    public Optional<TradeEventsBlock> getTradeEventsBlock() {
-        return Optional.ofNullable(tradeEventsBlock);
-    }
 
-    @Override
-    public String toString() {
-        return "CommandProcessingResponse{" +
-                "resultCode=" + resultCode +
-                ", tradeEventsBlock=" + tradeEventsBlock +
-                '}';
+    public boolean isSuccessful() {
+        return resultCode == RESULT_SUCCESS;
     }
 }

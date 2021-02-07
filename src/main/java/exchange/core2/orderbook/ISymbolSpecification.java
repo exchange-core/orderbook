@@ -16,9 +16,12 @@
 
 package exchange.core2.orderbook;
 
+// TODO get rid of StateHash  ? (use regular hashcode?)
 public interface ISymbolSpecification extends StateHash {
 
     boolean isExchangeType();
+
+    int getSymbolId();
 
 }
 

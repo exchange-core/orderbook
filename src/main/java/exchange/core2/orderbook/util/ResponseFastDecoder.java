@@ -43,14 +43,14 @@ public final class ResponseFastDecoder {
                            final long correlationId,
                            final int symbolId) {
 
-        log.debug("Parsing response:\n{}", buf.prettyHexDump());
+//        log.debug("Parsing response:\n{}", buf.prettyHexDump());
 
         final int msgSize = buf.getRemainingSize();
 
         // TODO provide as an argument?
         final byte commandType = buf.readByte();
 
-        log.debug("commandType:{}", commandType);
+//        log.debug("commandType:{}", commandType);
 
         if (commandType < 1 || commandType > 5) {
             throw new IllegalArgumentException("unsupported by ResponseFastDecoder commandType=" + commandType);

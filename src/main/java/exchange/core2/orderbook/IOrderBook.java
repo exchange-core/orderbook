@@ -255,4 +255,26 @@ public interface IOrderBook<S extends ISymbolSpecification> extends StateHash {
      */
     int UNSPECIFIED_REMAINING_SIZE_MARKER = -1;
 
+
+    static int fixedCommandSize(final byte cmdCode) {
+
+        switch (cmdCode) {
+            case COMMAND_PLACE_ORDER:
+                return PLACE_OFFSET_END;
+
+            case COMMAND_CANCEL_ORDER:
+                return CANCEL_OFFSET_END;
+
+            case COMMAND_MOVE_ORDER:
+                return MOVE_OFFSET_END;
+
+            case COMMAND_REDUCE_ORDER:
+                return REDUCE_OFFSET_END;
+
+                // TODO add L2 query and other commands
+
+            default:
+                throw new IllegalStateException("Unexpected command code: " + cmdCode);
+        }
+    }
 }

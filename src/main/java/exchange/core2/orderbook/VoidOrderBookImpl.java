@@ -90,6 +90,8 @@ public final class VoidOrderBookImpl<T extends ISymbolSpecification> implements 
     @Override
     public void sendL2Snapshot(DirectBuffer buffer, int offset) {
         resultsBuffer.appendByte(IOrderBook.QUERY_ORDER_BOOK);
+        resultsBuffer.appendInt(0);
+        resultsBuffer.appendInt(0);
         resultsBuffer.appendShort(RESULT_UNKNOWN_SYMBOL);
     }
 

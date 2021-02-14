@@ -118,6 +118,10 @@ public class BufferReader {
         readPosition += length;
     }
 
+    public void reset() {
+        readPosition = initialPosition;
+    }
+
     public String prettyHexDump() {
         return PrintBufferUtil.prettyHexDump(buffer, initialPosition, size);
     }
